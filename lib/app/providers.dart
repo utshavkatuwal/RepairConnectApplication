@@ -85,10 +85,10 @@ class AuthState extends StateNotifier<AsyncValue<User?>> {
     state = const AsyncValue.data(null);
   }
 
-  Future<void> verify(String code) async {
+  Future<void> verify(String email, String code) async {
     state = const AsyncValue.loading();
     try {
-      final u = await repo.verifyOtp(code);
+      final u = await repo.verifyOtp(email: email, code: code);
       state = AsyncValue.data(u);
     } catch (err, st) {
       state = AsyncValue.error(err, st);
@@ -98,8 +98,8 @@ class AuthState extends StateNotifier<AsyncValue<User?>> {
 
   Future<void> forgot(String email) => repo.requestPasswordReset(email);
 
-  Future<void> reset(String token, String password) =>
-      repo.resetPassword(token: token, password: password);
+  Future<void> reset(String email, String token, String password) =>
+      repo.resetPassword(email: email, token: token, password: password);
 }
 
 final authProvider =

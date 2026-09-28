@@ -47,6 +47,14 @@ Backend prod: scaffold Laravel per `backend/API_CONTRACT.md`, import
 (bcrypt-12, Sanctum rotation, policies, throttles, signed uploads, audit_logs).
 Then set `USE_FAKE_BACKEND=false` + production `API_BASE_URL` in `.env`.
 
+> LIVE STATUS: `backend-app/` is a runnable Laravel 13 + Sanctum API
+> (migrations, services, policies, events, wallet ledger, PHPUnit 24/24).
+> Serve: `php backend-app/artisan serve --host=127.0.0.1 --port=8000`
+> (SQLite dev DB; MySQL 8 required per `backend-app/docs/local-development.md`).
+> Full HTTP E2E (register → verify → accept → lifecycle → payment-honesty →
+> chat → review → withdrawal): 21/21 green. Naming bridge:
+> `backend-app/docs/FLUTTER_MAPPING.md`.
+
 ## Testing & build
 - Unit: state machines (jobs/payments), validators, guards, filters, envelope/paged, geo, notifications, earnings.
 - Widget: AsyncStateView states, RcButton/Field, design-system render, router boot.

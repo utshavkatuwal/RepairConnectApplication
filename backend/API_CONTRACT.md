@@ -1,33 +1,26 @@
-# RepairConnect backend (Laravel REST) — scaffold contract.
-# Full Laravel app lives here in prod; this repo ships contract + schema
-# because PHP/MySQL are not in this build env. Flutter never talks to MySQL.
+# RepairConnect backend — implementation index
 
-Versioned base: /api/v1
+The live implementation is `backend-app/` (Laravel 13 + Sanctum, 24/24
+tests green, 21/21 HTTP E2E green on a real database). This folder keeps
+the original design notes:
 
-Auth:
-POST /api/v1/auth/register {name,email,password,role} -> {token,user}
-POST /api/v1/auth/login {email,password} -> {token,user}
-POST /api/v1/auth/logout (auth)
-POST /api/v1/auth/refresh {refresh_token} -> {token}
+- `database/schema.sql` — early schema sketch (superseded by
+  `backend-app/database/migrations/`, which is authoritative).
+- `SECURITY.md` — original security notes (superseded by
+  `backend-app/docs/` + `backend/SECURITY.md` still applies as policy).
 
-Envelope success: {success:true,data:{...},message?,meta?}
-Envelope error: {success:false,message,code?,errors?}
+Canonical references (all real, all tested):
 
-Authorization (server-enforced, never trust client role):
-- CUSTOMER: own requests/bookings/chat/payments/reviews.
-- TECHNICIAN: verified only for accept; own jobs only.
-- ADMIN: /api/v1/admin/* + audit_logs write.
+- Routes: `backend-app/routes/api.php` (`/api/v1/...`)
+- Docs: `backend-app/docs/` (architecture, database, api,
+  authentication, jobs, payments, technician-verification,
+  local-development, environment) + `FLUTTER_MAPPING.md` (Flutter ↔
+  API naming bridge: snake_case vs SCREAMING).
+- Keys: `.env.example` files (Flutter root + `backend-app/`). No
+  secrets committed. Local runs sqlite by default; MySQL 8 is the
+  required local DB (`DB_CONNECTION=mysql`, see local-development doc).
 
-Key rules:
-- Job transitions validated server-side via transitions map (see AppRoles/JobStatus).
-- Reviews only after COMPLETED booking by participant.
-- Payments: create with idempotency_key; verify provider webhook before SUCCEEDED.
-- Uploads: mime/size validated, safe filenames, private disk for verification docs.
-- Rate limit auth + payment endpoints; CORS allowlisted; SQL via Eloquent bindings.
-
-Laravel scaffold to create in prod:
-- composer create-project laravel/laravel backend
-- Models: User, TechnicianProfile, Category, ServiceItem, ServiceRequest, Booking, Conversation, Message, Notification, Payment, Review, Complaint, AuditLog
-- Controllers: AuthController, CatalogController, TechnicianController, RequestController, BookingController (transition), ChatController, NotificationController, PaymentController (webhook), ReviewController, AdminController
-- Middleware: auth:sanctum, role:CUSTOMER|TECHNICIAN|ADMIN, verified-technician
-- routes/api.php versioned as above; Sanctum tokens; audit middleware on admin writes.
+Flutter integration: `USE_FAKE_BACKEND=false` +
+`API_BASE_URL=http://127.0.0.1:8000` (`http://10.0.2.2:8000` on the
+Android emulator). Live check:
+`flutter test --dart-define=BACKEND_LIVE=true test/backend_live_test.dart`.

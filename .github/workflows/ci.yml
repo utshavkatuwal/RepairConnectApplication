@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: curl, fileinfo, mbstring, openssl, pdo_mysql, pdo_sqlite, sqlite3
+          coverage: none
+      - uses: actions/cache@v4
+        with:
+          path: backend-app/vendor
+          key: composer-${{ hashFiles('backend-app/composer.lock') }}
+      - run: composer install --no-interaction --prefer-dist
+        working-directory: backend-app
+      - run: php artisan test
+        working-directory: backend-app
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ':memory:'
+          CACHE_STORE: array
+          QUEUE_CONNECTION: sync
+
+  flutter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - run: flutter test --dart-define=BACKEND_LIVE=true test/backend_live_test.dart
+        if: false # enable once CI provisions the API service

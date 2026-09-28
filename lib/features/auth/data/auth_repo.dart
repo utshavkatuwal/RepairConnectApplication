@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/config/env.dart';
 import '../../../core/network/dio_client.dart';
+import '../../../core/network/api_mapper.dart';
 import '../../../core/security/input_safety.dart';
 import '../../../core/storage/session_store.dart';
 import '../../../shared/models/models.dart';
@@ -88,7 +89,8 @@ class AuthRepository {
         'name': cleanName,
         'email': cleanEmail,
         'password': password,
-        'role': role,
+        'password_confirmation': password,
+        'role': apiRole(role),
       });
       final d = Map<String, dynamic>.from(r.data['data']);
       final u =
@@ -143,24 +145,30 @@ class AuthRepository {
   Future<void> requestPasswordReset(String email) async {
     if (AppEnv.useFakeBackend) return;
     try {
-      await api.dio.post('/api/v1/auth/forgot', data: {'email': email});
+      await api.dio.post(ApiRoutes.authForgot, data: {'email': email});
     } on DioException catch (e) {
       throw api.mapError(e);
     }
   }
 
   Future<void> resetPassword(
-      {required String token, required String password}) async {
+      {required String email,
+      required String token,
+      required String password}) async {
     if (AppEnv.useFakeBackend) return;
     try {
-      await api.dio.post('/api/v1/auth/reset',
-          data: {'token': token, 'password': password});
+      await api.dio.post(ApiRoutes.authReset, data: {
+        'email': email,
+        'token': token,
+        'password': password,
+        'password_confirmation': password,
+      });
     } on DioException catch (e) {
       throw api.mapError(e);
     }
   }
 
-  Future<User> verifyOtp(String code) async {
+  Future<User> verifyOtp({required String email, required String code}) async {
     if (AppEnv.useFakeBackend) {
       final u = await me();
       if (u == null) throw Exception('No session');
@@ -180,8 +188,8 @@ class AuthRepository {
       return verified;
     }
     try {
-      final r = await api.dio
-          .post('/api/v1/auth/verify', data: {'code': code});
+      final r = await api.dio.post(ApiRoutes.authVerify,
+          data: {'email': email, 'code': code});
       final d = Map<String, dynamic>.from(r.data['data']);
       final u =
           User.fromJson(Map<String, dynamic>.from(d['user']));
@@ -193,10 +201,11 @@ class AuthRepository {
     }
   }
 
-  Future<void> resendOtp() async {
+  Future<void> resendOtp(String email) async {
     if (AppEnv.useFakeBackend) return;
     try {
-      await api.dio.post('/api/v1/auth/verify/resend');
+      await api.dio
+          .post(ApiRoutes.authVerifySend, data: {'email': email});
     } on DioException catch (e) {
       throw api.mapError(e);
     }

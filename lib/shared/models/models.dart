@@ -1,6 +1,9 @@
 // Strongly-typed domain models (manual fromJson/toJson to avoid
 // build_runner in this env; compatible with json_serializable contracts).
 // Backend (Laravel/MySQL) is authoritative; Flutter never trusts client state.
+// Wire values pass through api_mapper (snake_case -> domain constants).
+
+import '../../core/network/api_mapper.dart';
 
 class User {
   final String id;
@@ -26,7 +29,7 @@ class User {
         id: '${j['id']}',
         name: '${j['name'] ?? ''}',
         email: '${j['email'] ?? ''}',
-        role: '${j['role'] ?? 'CUSTOMER'}',
+        role: normalizeRole('${j['role'] ?? 'CUSTOMER'}'),
         phone: j['phone']?.toString(),
         avatarUrl: j['avatar_url']?.toString() ?? j['avatarUrl']?.toString(),
         isVerified: (j['is_verified'] ?? j['isVerified'] ?? true) == true ||
@@ -142,9 +145,9 @@ class ServiceRequest {
   factory ServiceRequest.fromJson(Map<String, dynamic> j) => ServiceRequest(
         id: '${j['id']}',
         customerId: '${j['customer_id'] ?? ''}',
-        serviceId: '${j['service_id'] ?? ''}',
+        serviceId: '${j['service_id'] ?? j['specialty_id'] ?? ''}',
         description: '${j['description'] ?? ''}',
-        status: '${j['status'] ?? 'REQUESTED'}',
+        status: normalizeStatus('${j['status'] ?? 'REQUESTED'}'),
         preferredAt: j['preferred_at']?.toString(),
         address: j['address']?.toString(),
       );
@@ -173,7 +176,7 @@ class Booking {
         requestId: '${j['request_id'] ?? j['service_request_id'] ?? ''}',
         customerId: '${j['customer_id'] ?? ''}',
         technicianId: '${j['technician_id'] ?? ''}',
-        status: '${j['status'] ?? 'REQUESTED'}',
+        status: normalizeStatus('${j['status'] ?? 'REQUESTED'}'),
         price: double.tryParse('${j['price'] ?? 0}') ?? 0,
         paymentStatus: '${j['payment_status'] ?? 'PENDING'}',
         scheduledAt: j['scheduled_at']?.toString(),

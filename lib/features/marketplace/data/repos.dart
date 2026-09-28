@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/errors/failures.dart';
 import '../../../core/network/dio_client.dart';
+import '../../../core/network/api_mapper.dart';
 import '../../../core/config/env.dart';
 import '../../../core/security/input_safety.dart';
 import '../../../shared/models/models.dart';
@@ -249,9 +250,12 @@ class BookingsRepository {
     }
   }
 
+  /// serviceId doubles as the backend specialty id (Flutter catalog
+  /// categories map 1:1 to backend specialties; see FLUTTER_MAPPING).
   Future<ServiceRequest> createRequest(
       {required String serviceId,
       required String description,
+      String? title,
       String? preferredAt,
       String? address}) async {
     final cleanDesc = sanitizeText(description, max: 2000);
@@ -271,15 +275,20 @@ class BookingsRepository {
           address: cleanAddr);
     }
     try {
-      final r = await api.dio.post(ApiRoutes.serviceRequests, data: {
-        'service_id': serviceId,
-        'description': cleanDesc,
-        'preferred_at': preferredAt,
-        'address': cleanAddr,
-      });
-      final body = Map<String, dynamic>.from(r.data as Map);
-      final env = ApiResponse.envelope(body);
-      return ServiceRequest.fromJson(env.data ?? body['data']);
+      // Backend shape: specialty_id/title/description/address/lat/lng.
+      final body = serviceRequestBody(
+        specialtyId: serviceId,
+        title: title,
+        description: cleanDesc,
+        address: cleanAddr ?? '',
+        preferredAt: preferredAt,
+      );
+      final r =
+          await api.dio.post(ApiRoutes.serviceRequests, data: body);
+      final env =
+          ApiResponse.envelope(Map<String, dynamic>.from(r.data as Map));
+      return ServiceRequest.fromJson(
+          env.data ?? Map<String, dynamic>.from((r.data as Map)['data']));
     } on DioException catch (e) {
       throw api.mapError(e);
     }

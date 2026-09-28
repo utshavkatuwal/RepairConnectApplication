@@ -601,6 +601,7 @@ class _CState extends ConsumerState<CreateRequestScreen> {
   final _desc = TextEditingController();
   final _addr = TextEditingController();
   String _serviceId = 's1';
+  String? _serviceName;
   bool _busy = false;
   String? _err;
   LatLng? _pos;
@@ -628,7 +629,13 @@ class _CState extends ConsumerState<CreateRequestScreen> {
                           value: s.id,
                           child: Text('${s.name} — \$${s.basePrice}')))
                       .toList(),
-                  onChanged: (v) => setState(() => _serviceId = v ?? _serviceId),
+                  onChanged: (v) => setState(() {
+                    _serviceId = v ?? _serviceId;
+                    _serviceName = items
+                        .where((s) => s.id == _serviceId)
+                        .map((s) => s.name)
+                        .firstOrNull;
+                  }),
                   decoration:
                       const InputDecoration(labelText: 'SERVICE / CATEGORY'),
                 );
@@ -672,6 +679,7 @@ class _CState extends ConsumerState<CreateRequestScreen> {
                         .createRequest(
                             serviceId: _serviceId,
                             description: _desc.text.trim(),
+                            title: _serviceName,
                             address: _pos == null
                                 ? _addr.text.trim()
                                 : '${_addr.text.trim()} [${_pos!.label}]');
