@@ -31,4 +31,3 @@ enum PaymentStatus: string
         return in_array($to, self::transitions()[$from] ?? [], true);
     }
 }
-

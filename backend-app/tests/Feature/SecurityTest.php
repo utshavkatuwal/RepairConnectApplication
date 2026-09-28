@@ -19,7 +19,7 @@ class SecurityTest extends TestCase
         $req = ServiceRequest::factory()->create(['customer_id' => $a->id]);
 
         $this->getJson("/api/v1/service-requests/{$req->id}", [
-            'Authorization' => 'Bearer ' . $b->createToken('x')->plainTextToken,
+            'Authorization' => 'Bearer '.$b->createToken('x')->plainTextToken,
         ])->assertForbidden();
     }
 
@@ -35,7 +35,7 @@ class SecurityTest extends TestCase
             'address' => 'nowhere',
             'latitude' => 999,
             'longitude' => 999,
-        ], ['Authorization' => 'Bearer ' . $customer->createToken('c')->plainTextToken])
+        ], ['Authorization' => 'Bearer '.$customer->createToken('c')->plainTextToken])
             ->assertStatus(422)
             ->assertJsonPath('success', false);
     }

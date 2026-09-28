@@ -9,11 +9,14 @@ use App\Http\Requests\ApiRequests\LoginRequest;
 use App\Http\Requests\ApiRequests\RegisterRequest;
 use App\Http\Resources\ApiResources\UserResource;
 use App\Models\CustomerProfile;
+use App\Models\OtpCode;
 use App\Models\TechnicianProfile;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 
 class AuthController extends Controller
@@ -35,6 +38,7 @@ class AuthController extends Controller
                 $profile = TechnicianProfile::create(['user_id' => $user->id]);
                 event(new TechnicianRegistered($profile));
             }
+
             return $user;
         });
 
@@ -143,18 +147,18 @@ class AuthController extends Controller
         $request->validate(['email' => ['required', 'email:rfc']]);
         $email = strtolower(trim($request->string('email')));
 
-        \App\Models\OtpCode::where('email', $email)->whereNull('consumed_at')->update([
+        OtpCode::where('email', $email)->whereNull('consumed_at')->update([
             'consumed_at' => now(),
         ]);
 
         $code = (string) random_int(100000, 999999);
-        \App\Models\OtpCode::create([
+        OtpCode::create([
             'email' => $email,
-            'code_hash' => \Illuminate\Support\Facades\Hash::make($code),
+            'code_hash' => Hash::make($code),
             'expires_at' => now()->addMinutes(10),
         ]);
 
-        \Illuminate\Support\Facades\Mail::raw(
+        Mail::raw(
             "Your RepairConnect code is: {$code}. It expires in 10 minutes.",
             fn ($m) => $m->to($email)->subject('Verification code')
         );
@@ -174,14 +178,15 @@ class AuthController extends Controller
         ]);
         $email = strtolower(trim($request->string('email')));
 
-        $otp = \App\Models\OtpCode::where('email', $email)
+        $otp = OtpCode::where('email', $email)
             ->whereNull('consumed_at')
             ->latest()
             ->first();
         abort_unless($otp?->usable(), 422, 'Code expired. Request a new one.');
 
-        if (! \Illuminate\Support\Facades\Hash::check($request->string('code'), $otp->code_hash)) {
+        if (! Hash::check($request->string('code'), $otp->code_hash)) {
             $otp->increment('attempts');
+
             return response()->json(['success' => false, 'message' => 'Invalid code.'], 422);
         }
 

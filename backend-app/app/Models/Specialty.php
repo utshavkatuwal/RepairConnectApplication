@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Specialty extends Model
 {
@@ -12,9 +12,8 @@ class Specialty extends Model
 
     protected $fillable = ['name', 'description', 'icon', 'status'];
 
-    public function technicians(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function technicians(): HasMany
     {
         return $this->hasMany(TechnicianProfile::class);
     }
 }
-

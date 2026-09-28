@@ -124,8 +124,8 @@ class ApiPaymentsRepository implements PaymentsRepository {
   @override
   Future<String> status(String transactionId) async {
     try {
-      final r =
-          await api.getRetry('/api/v1/transactions/$transactionId');
+      // transactionId may be a payment id (live) — authoritative lookup.
+      final r = await api.getRetry('/api/v1/payments/$transactionId');
       final body = Map<String, dynamic>.from(r.data as Map);
       final data = body['data'] is Map
           ? Map<String, dynamic>.from(body['data'])
@@ -139,9 +139,19 @@ class ApiPaymentsRepository implements PaymentsRepository {
   @override
   Future<List<Transaction>> transactions(String bookingId) async {
     try {
-      final r = await api.getRetry('/api/v1/bookings/$bookingId/transactions');
+      final r =
+          await api.getRetry('/api/v1/jobs/$bookingId/payments');
       final body = Map<String, dynamic>.from(r.data as Map);
-      return ApiResponse.list(body, Transaction.fromJson);
+      final items = body['data'];
+      if (items is! List) return [];
+      return items
+          .map((e) => Transaction(
+                id: '${(e as Map)['id']}',
+                paymentId: '${e['id']}',
+                kind: 'CHARGE',
+                amount: double.tryParse('${e['amount'] ?? 0}') ?? 0,
+              ))
+          .toList();
     } catch (e) {
       throw api.mapError(e);
     }
@@ -151,11 +161,14 @@ class ApiPaymentsRepository implements PaymentsRepository {
   Future<Invoice?> invoice(String bookingId) async {
     try {
       final r =
-          await api.getRetry('/api/v1/bookings/$bookingId/invoice');
+          await api.getRetry('/api/v1/jobs/$bookingId/invoice');
       final body = Map<String, dynamic>.from(r.data as Map);
       final data = body['data'];
-      if (data == null) return null;
-      return Invoice.fromJson(Map<String, dynamic>.from(data as Map));
+      if (data is! Map) return null;
+      return Invoice.fromJson(Map<String, dynamic>.from(data));
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
+      throw api.mapError(e);
     } catch (e) {
       throw api.mapError(e);
     }

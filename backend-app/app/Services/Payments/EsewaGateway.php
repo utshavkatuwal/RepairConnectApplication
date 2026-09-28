@@ -17,7 +17,7 @@ class EsewaGateway extends BaseGateway
 
         return [
             'provider' => 'esewa',
-            'provider_ref' => 'esewa_' . $order['idempotency_key'],
+            'provider_ref' => 'esewa_'.$order['idempotency_key'],
             'form_url' => $this->cfg('endpoint', 'https://rc.esewa.com.np/epay/main'),
             'payload' => [
                 'amt' => $order['amount'],

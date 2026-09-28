@@ -14,11 +14,10 @@ class ExpireStaleRequests implements ShouldQueue
     public function handle(): void
     {
         ServiceRequest::whereIn('status', [
-                RequestStatus::Requested->value,
-                RequestStatus::Searching->value,
-            ])
+            RequestStatus::Requested->value,
+            RequestStatus::Searching->value,
+        ])
             ->where('created_at', '<', now()->subHours(72))
             ->update(['status' => RequestStatus::Cancelled->value]);
     }
 }
-

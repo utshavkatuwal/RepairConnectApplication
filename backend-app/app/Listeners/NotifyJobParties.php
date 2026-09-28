@@ -8,6 +8,7 @@ use App\Events\MessageSent;
 use App\Events\PaymentSuccessful;
 use App\Events\TechnicianVerified;
 use App\Events\WithdrawalRequested;
+use App\Models\User;
 use App\Services\NotificationService;
 
 class NotifyJobParties
@@ -68,7 +69,7 @@ class NotifyJobParties
 
     public function handleWithdrawal(WithdrawalRequested $e): void
     {
-        $admins = \App\Models\User::whereIn('role', ['admin', 'super_admin'])
+        $admins = User::whereIn('role', ['admin', 'super_admin'])
             ->where('status', 'active')->get();
         foreach ($admins as $admin) {
             $this->notify->notify(

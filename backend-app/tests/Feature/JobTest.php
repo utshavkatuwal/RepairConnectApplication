@@ -123,6 +123,7 @@ class JobTest extends TestCase
     private function customer(): array
     {
         $u = User::factory()->create(['role' => 'customer', 'status' => 'active']);
+
         return [$u, $u->createToken('c')->plainTextToken];
     }
 
@@ -135,6 +136,7 @@ class JobTest extends TestCase
             'latitude' => 27.71,
             'longitude' => 85.32,
         ]);
+
         return $u;
     }
 }

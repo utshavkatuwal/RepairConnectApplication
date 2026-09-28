@@ -2,10 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\ServiceRequest;
-use App\Models\TechnicianProfile;
-use Illuminate\Support\Collection;
-
 class LocationService
 {
     public function km(float $lat1, float $lng1, float $lat2, float $lng2): float
@@ -19,4 +15,3 @@ class LocationService
         return 2 * $r * asin(sqrt($a));
     }
 }
-

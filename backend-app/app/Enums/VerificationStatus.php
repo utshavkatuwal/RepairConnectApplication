@@ -9,4 +9,3 @@ enum VerificationStatus: string
     case Rejected = 'rejected';
     case ResubmissionRequired = 'resubmission_required';
 }
-

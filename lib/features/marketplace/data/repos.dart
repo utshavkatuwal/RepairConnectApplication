@@ -99,7 +99,10 @@ class CatalogRepository {
     }
   }
 
-  /// Paginated services (§20). Fake backend slices deterministically.
+  /// Services resolve from backend specialties (there is no services
+  /// table by design — a request carries specialty + title). Each
+  /// specialty surfaces as one bookable item; price is estimated at
+  /// request time, never a stored promise.
   Future<Paged<ServiceItem>> servicesPaged(
       {String? categoryId,
       String? q,
@@ -123,15 +126,31 @@ class CatalogRepository {
           lastPage: (all.length / perPage).ceil().clamp(1, 1 << 30));
     }
     try {
-      final r = await api.getRetry(ApiRoutes.services, query: {
-        if (categoryId != null) 'category_id': categoryId,
-        if (q != null) 'q': q,
-        'page': page,
-        'per_page': perPage,
-      });
-      return ApiResponse.paged(
-          Map<String, dynamic>.from(r.data as Map),
-          ServiceItem.fromJson);
+      final cats = await categories();
+      final wanted = {
+        for (final c in cats)
+          if (categoryId == null || c.id == categoryId) c.id: c
+      };
+      final ql = q?.toLowerCase();
+      final items = [
+        for (final c in wanted.values)
+          if (ql == null || c.name.toLowerCase().contains(ql))
+            ServiceItem(
+                id: c.id,
+                categoryId: c.id,
+                name: c.name,
+                description: null,
+                basePrice: 0),
+      ];
+      return Paged(
+          items: items
+              .skip((page - 1) * perPage)
+              .take(perPage)
+              .toList(),
+          page: page,
+          perPage: perPage,
+          total: items.length,
+          lastPage: (items.length / perPage).ceil().clamp(1, 1 << 30));
     } catch (e) {
       throw api.mapError(e);
     }

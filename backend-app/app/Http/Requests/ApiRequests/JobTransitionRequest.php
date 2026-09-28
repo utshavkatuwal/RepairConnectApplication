@@ -2,9 +2,7 @@
 
 namespace App\Http\Requests\ApiRequests;
 
-use App\Enums\Role;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class JobTransitionRequest extends FormRequest
 {
@@ -21,4 +19,3 @@ class JobTransitionRequest extends FormRequest
         ];
     }
 }
-

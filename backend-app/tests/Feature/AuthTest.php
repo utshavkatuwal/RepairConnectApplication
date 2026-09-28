@@ -57,6 +57,7 @@ class AuthTest extends TestCase
     private function tokenFor(string $role): string
     {
         $user = User::factory()->create(['role' => $role, 'status' => 'active']);
+
         return $user->createToken('test')->plainTextToken;
     }
 }

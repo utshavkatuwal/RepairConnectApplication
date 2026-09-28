@@ -17,7 +17,7 @@ class KhaltiGateway extends BaseGateway
 
         return [
             'provider' => 'khalti',
-            'provider_ref' => 'khalti_' . $order['idempotency_key'],
+            'provider_ref' => 'khalti_'.$order['idempotency_key'],
             'payload' => [
                 'amount' => (int) round($order['amount'] * 100),
                 'purchase_order_id' => $order['idempotency_key'],

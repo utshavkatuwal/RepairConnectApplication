@@ -10,4 +10,3 @@ enum WalletTxType: string
     case Refund = 'refund';
     case Adjustment = 'adjustment';
 }
-

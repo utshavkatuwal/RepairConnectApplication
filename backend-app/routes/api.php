@@ -14,7 +14,6 @@ use App\Http\Controllers\Api\V1\SpecialtyController;
 use App\Http\Controllers\Api\V1\TechnicianController;
 use App\Http\Controllers\Api\V1\VerificationController;
 use App\Http\Controllers\Api\V1\WalletController;
-use App\Models\Specialty;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {

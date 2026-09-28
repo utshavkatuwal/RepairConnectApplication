@@ -3,23 +3,12 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-
-use App\Http\Requests\ApiRequests\MessageStoreRequest;
-use App\Http\Requests\ApiRequests\PaymentInitiateRequest;
-use App\Http\Requests\ApiRequests\ReviewStoreRequest;
-use App\Http\Requests\ApiRequests\WithdrawalRequestRequest;
 use App\Models\Complaint;
-use App\Models\Conversation;
-use App\Models\Dispute;
 use App\Models\Job;
-use App\Models\Message;
 use App\Models\Payment;
-use App\Models\Review;
+use App\Models\PlatformSetting;
+use App\Models\TechnicianProfile;
 use App\Models\User;
-use App\Services\Notifications;
-use App\Services\NotificationService;
-use App\Services\Payments\PaymentService;
-use App\Services\Payments\WalletService;
 use Illuminate\Http\Request;
 
 class AdminController extends Controller
@@ -32,8 +21,8 @@ class AdminController extends Controller
             'technicians' => User::where('role', 'technician')->count(),
             'active_jobs' => Job::whereNotIn('status', ['completed', 'cancelled'])->count(),
             'completed_jobs' => Job::where('status', 'completed')->count(),
-            'revenue' => (float) \App\Models\Payment::where('status', 'successful')->sum('amount'),
-            'pending_verification' => \App\Models\TechnicianProfile::where('verification_status', 'pending')->count(),
+            'revenue' => (float) Payment::where('status', 'successful')->sum('amount'),
+            'pending_verification' => TechnicianProfile::where('verification_status', 'pending')->count(),
             'open_complaints' => Complaint::where('status', 'open')->count(),
         ]]);
     }
@@ -59,10 +48,10 @@ class AdminController extends Controller
     public function settings(Request $request)
     {
         if ($request->isMethod('get')) {
-            return response()->json(['success' => true, 'message' => 'Settings.', 'data' => \App\Models\PlatformSetting::all()]);
+            return response()->json(['success' => true, 'message' => 'Settings.', 'data' => PlatformSetting::all()]);
         }
         $request->validate(['key' => ['required', 'string'], 'value' => ['nullable', 'string']]);
-        \App\Models\PlatformSetting::updateOrCreate(
+        PlatformSetting::updateOrCreate(
             ['key' => $request->string('key')],
             ['value' => $request->input('value')]
         );
@@ -70,4 +59,3 @@ class AdminController extends Controller
         return response()->json(['success' => true, 'message' => 'Setting saved.', 'data' => []]);
     }
 }
-

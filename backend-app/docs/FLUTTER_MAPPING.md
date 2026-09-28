@@ -50,13 +50,23 @@ Sanctum bearer; `refresh_token` reads are null-safe). `/users/me` →
 
 ## Bookings, chat, payments, reviews
 
-- Booking detail: `GET /api/v1/jobs/{id}`; conversation:
-  `GET /api/v1/jobs/{id}/conversation`; transition:
-  `POST /api/v1/jobs/{id}/transition {status,reason?}`.
+- Booking detail: `GET /api/v1/jobs/{id}` (Flutter `ApiRoutes.bookings`
+  points at `/jobs`); transition:
+  `POST /api/v1/jobs/{id}/transition {status,reason?}`; my bookings:
+  `GET /api/v1/jobs?mine=1`.
+- Technicians directory: `GET /api/v1/technicians`
+  (`q,category_id,available,lat,lng,page,per_page`, distance-sorted).
+- Conversation: `GET /api/v1/jobs/{id}/conversation`.
 - Payments: `POST /api/v1/payments` with `Idempotency-Key` header +
-  body `idempotency_key`; status via transaction lookup (server-verified).
-- Reviews: `POST /api/v1/reviews {job_id,rating,comment?}` (unique per
+  body `idempotency_key`; status: `GET /api/v1/payments/{id}`;
+  history: `GET /api/v1/jobs/{id}/payments`; invoice:
+  `GET /api/v1/jobs/{id}/invoice` (404 until a successful payment exists).
+- Reviews: `GET /api/v1/reviews?booking_id|technician_id`,
+  `POST /api/v1/reviews {job_id,rating,comment?}` (unique per
   job, COMPLETED only — server enforces 409/422).
+- Auth: `forgot-password` / `reset-password` (email + token +
+  confirmation), OTP `verify/send` + `verify {email,code}`,
+  `refresh` (rotates the calling token).
 - Notifications: `GET /api/v1/notifications`, `POST .../{id}/read`.
 
 ## Live check

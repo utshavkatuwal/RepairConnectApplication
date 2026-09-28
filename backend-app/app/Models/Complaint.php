@@ -20,4 +20,3 @@ class Complaint extends Model
         return $this->belongsTo(User::class, 'reporter_id');
     }
 }
-

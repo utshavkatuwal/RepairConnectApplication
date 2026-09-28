@@ -25,4 +25,3 @@ class WalletTransaction extends Model
         return $this->belongsTo(User::class, 'technician_id');
     }
 }
-

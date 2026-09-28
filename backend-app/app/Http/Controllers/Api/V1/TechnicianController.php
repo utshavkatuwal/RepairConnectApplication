@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-
 use App\Http\Requests\ApiRequests\TechnicianProfileRequest;
+use App\Models\Job;
+use App\Models\Review;
+use App\Models\ServiceRequest;
 use App\Models\Specialty;
 use App\Models\TechnicianProfile;
 use App\Services\LocationService;
 use App\Services\MatchingService;
-use App\Services\NotificationService;
 use App\Services\VerificationService;
 use Illuminate\Http\Request;
 
@@ -52,9 +53,9 @@ class TechnicianController extends Controller
             'user_id' => $p->user_id,
             'name' => $p->user?->name,
             'specialty' => $p->specialty?->name,
-            'rating' => round((float) \App\Models\Review::where('technician_id', $p->user_id)->avg('rating'), 2),
+            'rating' => round((float) Review::where('technician_id', $p->user_id)->avg('rating'), 2),
             'jobs_completed' => $p->user
-                ? \App\Models\Job::where('technician_id', $p->user_id)->where('status', 'completed')->count()
+                ? Job::where('technician_id', $p->user_id)->where('status', 'completed')->count()
                 : 0,
             'verified' => true,
             'available' => $p->availability_status === 'online',
@@ -97,7 +98,7 @@ class TechnicianController extends Controller
     public function uploadDocument(Request $request, VerificationService $verification)
     {
         $request->validate([
-            'document_type' => ['required', 'in:' . implode(',', VerificationService::TYPES)],
+            'document_type' => ['required', 'in:'.implode(',', VerificationService::TYPES)],
             'file' => ['required', 'file', 'max:10240'],
         ]);
         $profile = $request->user()->technicianProfile()->firstOrFail();
@@ -147,7 +148,7 @@ class TechnicianController extends Controller
         abort_unless($profile?->isApproved(), 403, 'Technician is not approved.');
         abort_unless($profile->latitude && $profile->longitude, 422, 'Set your location first.');
 
-        $open = \App\Models\ServiceRequest::whereIn('status', ['requested', 'searching'])
+        $open = ServiceRequest::whereIn('status', ['requested', 'searching'])
             ->where('specialty_id', $profile->specialty_id)
             ->paginate(20);
 
@@ -168,4 +169,3 @@ class TechnicianController extends Controller
         ]);
     }
 }
-

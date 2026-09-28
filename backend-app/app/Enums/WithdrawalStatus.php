@@ -11,4 +11,3 @@ enum WithdrawalStatus: string
     case Rejected = 'rejected';
     case Cancelled = 'cancelled';
 }
-

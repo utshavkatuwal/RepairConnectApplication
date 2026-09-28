@@ -91,6 +91,7 @@ class _HomeState extends ConsumerState<CustomerHomeScreen> {
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
         currentIndex: 0,
         onTap: (i) {
           if (i == 1) context.go(AppRoutes.discovery);
@@ -185,11 +186,13 @@ class _HomeState extends ConsumerState<CustomerHomeScreen> {
               ),
               const SizedBox(height: 14),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Categories',
-                      style: TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w700, color: RepairColors.headingOn(context))),
+                  Expanded(
+                    child: Text('Categories',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w700, color: RepairColors.headingOn(context))),
+                  ),
                   TextButton(
                       onPressed: () => context.go(AppRoutes.categories),
                       child: Text('View all')),
@@ -210,11 +213,13 @@ class _HomeState extends ConsumerState<CustomerHomeScreen> {
               ),
               const SizedBox(height: 14),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Verified technicians',
-                      style: TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w700, color: RepairColors.headingOn(context))),
+                  Expanded(
+                    child: Text('Verified technicians',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w700, color: RepairColors.headingOn(context))),
+                  ),
                   TextButton(
                       onPressed: () => context.go(AppRoutes.discovery),
                       child: Text('View all')),

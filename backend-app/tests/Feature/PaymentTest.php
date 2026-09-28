@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Job;
 use App\Models\Payment;
+use App\Models\PlatformSetting;
 use App\Models\TechnicianProfile;
 use App\Models\User;
 use App\Services\Payments\PaymentService;
@@ -68,7 +69,7 @@ class PaymentTest extends TestCase
     public function test_settle_computes_commission_and_ledgers(): void
     {
         [$customer, $job] = $this->completedJob();
-        \App\Models\PlatformSetting::updateOrCreate(
+        PlatformSetting::updateOrCreate(
             ['key' => 'commission_percent'], ['value' => '10']
         );
         $payment = Payment::create([
@@ -144,6 +145,7 @@ class PaymentTest extends TestCase
             'status' => 'completed',
             'completed_at' => now(),
         ]);
+
         return [$customer, $job];
     }
 }

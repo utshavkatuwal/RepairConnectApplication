@@ -19,4 +19,3 @@ class Dispute extends Model
         return $this->belongsTo(Job::class);
     }
 }
-

@@ -11,6 +11,7 @@ class DatabaseSeeder extends Seeder
         // Development data only. Production seeds nothing fake.
         if (app()->environment('production')) {
             $this->call(SpecialtySeeder::class);
+
             return;
         }
 

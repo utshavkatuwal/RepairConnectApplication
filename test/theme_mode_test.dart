@@ -50,6 +50,30 @@ void main() {
     expect(find.text('Verified technicians'), findsOneWidget);
   });
 
+  testWidgets('key screens hold at phone width (360px)',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(360, 740);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final errors = <String>[];
+    final old = FlutterError.onError;
+    FlutterError.onError = (d) {
+      errors.add(d.toString());
+    };
+    await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
+            theme: buildRepairTheme(),
+            home: const CustomerHomeScreen())));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
+    FlutterError.onError = old;
+    expect(find.text('What needs repair?'), findsOneWidget);
+    expect(errors, isEmpty);
+  });
+
   testWidgets('back button falls back when stack is empty',
       (WidgetTester tester) async {
     final router = GoRouter(

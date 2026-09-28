@@ -6,7 +6,7 @@ abstract class BaseGateway implements PaymentGateway
 {
     protected function cfg(string $key, mixed $default = null): mixed
     {
-        return config('payments.' . static::name() . '.' . $key, $default);
+        return config('payments.'.static::name().'.'.$key, $default);
     }
 
     abstract protected static function name(): string;

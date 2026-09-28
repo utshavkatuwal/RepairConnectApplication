@@ -43,7 +43,7 @@ class _LoginState extends ConsumerState<LoginScreen> {
             ],
             const SizedBox(height: 16),
             RcButton(
-                label: 'Confirm Dispatch',
+                label: 'Log in',
                 loading: _busy,
                 onPressed: () async {
                   if (!_f.currentState!.validate()) return;
@@ -145,7 +145,7 @@ class _SignupState extends ConsumerState<SignupScreen> {
             ],
             const SizedBox(height: 16),
             RcButton(
-                label: 'Submit Verification Audit',
+                label: 'Create account',
                 loading: _busy,
                 onPressed: () async {
                   if (!_f.currentState!.validate()) return;
@@ -258,6 +258,7 @@ class VerifyOtpScreen extends ConsumerStatefulWidget {
 
 class _VerifyState extends ConsumerState<VerifyOtpScreen> {
   final _f = GlobalKey<FormState>();
+  final _email = TextEditingController();
   final _code = TextEditingController();
   bool _busy = false;
   String? _err;
@@ -273,8 +274,14 @@ class _VerifyState extends ConsumerState<VerifyOtpScreen> {
           padding: const EdgeInsets.all(20),
           children: [
             Text(
-                'Enter the 6-digit verification code sent to your email.',
+                'Enter your account email and the 6-digit code we sent.',
                 style: TextStyle(fontSize: 13, color: RepairColors.mutedOn(context))),
+            const SizedBox(height: 12),
+            RcField(
+                label: 'EMAIL',
+                controller: _email,
+                validator: emailValidator,
+                keyboard: TextInputType.emailAddress),
             const SizedBox(height: 12),
             RcField(
                 label: '6-DIGIT CODE',
@@ -300,7 +307,7 @@ class _VerifyState extends ConsumerState<VerifyOtpScreen> {
                   try {
                     await ref
                         .read(authProvider.notifier)
-                        .verify(_code.text.trim());
+                        .verify(_email.text.trim(), _code.text.trim());
                     if (!context.mounted) return;
                     final u =
                         ref.read(authProvider).valueOrNull;
@@ -321,8 +328,15 @@ class _VerifyState extends ConsumerState<VerifyOtpScreen> {
                 }),
             TextButton(
                 onPressed: () async {
+                  if (_email.text.trim().isEmpty) {
+                    setState(() =>
+                        _err = 'Enter your email first, then resend.');
+                    return;
+                  }
                   try {
-                    await ref.read(authRepoProvider).resendOtp();
+                    await ref
+                        .read(authRepoProvider)
+                        .resendOtp(_email.text.trim());
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
@@ -351,6 +365,7 @@ class ResetPasswordScreen extends ConsumerStatefulWidget {
 
 class _ResetState extends ConsumerState<ResetPasswordScreen> {
   final _f = GlobalKey<FormState>();
+  final _e = TextEditingController();
   final _t = TextEditingController();
   final _p = TextEditingController();
   final _c = TextEditingController();
@@ -373,6 +388,12 @@ class _ResetState extends ConsumerState<ResetPasswordScreen> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
+            RcField(
+                label: 'EMAIL',
+                controller: _e,
+                validator: emailValidator,
+                keyboard: TextInputType.emailAddress),
+            const SizedBox(height: 12),
             RcField(
                 label: 'RESET TOKEN',
                 controller: _t,
@@ -409,7 +430,8 @@ class _ResetState extends ConsumerState<ResetPasswordScreen> {
                   try {
                     await ref
                         .read(authProvider.notifier)
-                        .reset(_t.text.trim(), _p.text);
+                        .reset(_e.text.trim(), _t.text.trim(),
+                            _p.text);
                     if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(

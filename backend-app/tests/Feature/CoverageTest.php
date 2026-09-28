@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Job;
 use App\Models\Payment;
+use App\Models\Review;
 use App\Models\Specialty;
 use App\Models\TechnicianProfile;
 use App\Models\User;
@@ -110,7 +111,7 @@ class CoverageTest extends TestCase
         $inv->assertJsonPath('data.total', 2000);
     }
 
-    /** @return array{User,Job,\App\Models\Review} */
+    /** @return array{User,Job,Review} */
     private function reviewedJob(): array
     {
         $customer = User::factory()->create(['role' => 'customer', 'status' => 'active']);
@@ -120,10 +121,11 @@ class CoverageTest extends TestCase
             'customer_id' => $customer->id, 'technician_id' => $tech->id,
             'status' => 'completed', 'completed_at' => now(),
         ]);
-        $review = \App\Models\Review::create([
+        $review = Review::create([
             'job_id' => $job->id, 'customer_id' => $customer->id,
             'technician_id' => $tech->id, 'rating' => 5,
         ]);
+
         return [$customer, $job, $review];
     }
 
@@ -137,6 +139,7 @@ class CoverageTest extends TestCase
             'customer_id' => $customer->id, 'technician_id' => $tech->id,
             'status' => 'completed', 'completed_at' => now(),
         ]);
+
         return [$customer, $job];
     }
 }

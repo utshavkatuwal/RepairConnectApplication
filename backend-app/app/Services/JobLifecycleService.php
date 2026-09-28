@@ -3,11 +3,8 @@
 namespace App\Services;
 
 use App\Enums\JobStatus;
-use App\Events\JobAccepted;
 use App\Events\JobStatusChanged;
-use App\Models\Conversation;
 use App\Models\Job;
-use App\Models\ServiceRequest;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;

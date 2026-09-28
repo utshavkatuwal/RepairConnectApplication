@@ -28,7 +28,14 @@ class TechDashboardScreen extends ConsumerWidget {
             icon: Icon(Icons.notifications_outlined)),
         IconButton(
             onPressed: () => context.go(AppRoutes.techProfile),
-            icon: Icon(Icons.person_outline))
+            icon: Icon(Icons.person_outline)),
+        IconButton(
+            tooltip: 'Log out',
+            onPressed: () async {
+              await ref.read(authProvider.notifier).logout();
+              if (context.mounted) context.go(AppRoutes.login);
+            },
+            icon: Icon(Icons.logout_outlined))
       ]),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,

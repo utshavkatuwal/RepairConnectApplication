@@ -2,8 +2,6 @@
 
 namespace App\Jobs;
 
-use App\Enums\RequestStatus;
-use App\Models\ServiceRequest;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 

@@ -2,9 +2,7 @@
 
 namespace App\Http\Requests\ApiRequests;
 
-use App\Enums\Role;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class ReviewStoreRequest extends FormRequest
 {
@@ -22,4 +20,3 @@ class ReviewStoreRequest extends FormRequest
         ];
     }
 }
-

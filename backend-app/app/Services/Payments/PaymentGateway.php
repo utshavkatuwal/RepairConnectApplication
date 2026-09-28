@@ -16,4 +16,3 @@ interface PaymentGateway
     /** Refund a settled payment. Returns provider refund reference. */
     public function refund(string $providerRef, float $amount): array;
 }
-

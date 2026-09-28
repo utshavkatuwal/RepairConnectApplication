@@ -14,4 +14,3 @@ enum RequestStatus: string
     case Cancelled = 'cancelled';
     case Disputed = 'disputed';
 }
-

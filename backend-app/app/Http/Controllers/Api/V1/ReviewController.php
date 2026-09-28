@@ -3,11 +3,10 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-
+use App\Http\Requests\ApiRequests\ReviewStoreRequest;
 use App\Models\Complaint;
 use App\Models\Job;
 use App\Models\Review;
-use App\Http\Requests\ApiRequests\ReviewStoreRequest;
 use Illuminate\Http\Request;
 
 class ReviewController extends Controller
@@ -67,10 +66,9 @@ class ReviewController extends Controller
         // Flagged for admin moderation (moderation queue reads complaints).
         Complaint::create([
             'reporter_id' => $request->user()->id,
-            'body' => "Review #{$id} reported: " . $request->string('reason'),
+            'body' => "Review #{$id} reported: ".$request->string('reason'),
         ]);
 
         return response()->json(['success' => true, 'message' => 'Reported for moderation.', 'data' => []]);
     }
 }
-

@@ -2,11 +2,11 @@
 
 namespace App\Services;
 
+use App\Events\TechnicianVerified;
 use App\Models\TechnicianProfile;
 use App\Models\User;
 use App\Models\VerificationDocument;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 class VerificationService
 {
@@ -31,9 +31,9 @@ class VerificationService
         abort_unless($file->getSize() <= self::MAX_BYTES, 422, 'Max file size is 10MB.');
 
         $ext = $file->guessExtension() ?? 'bin';
-        $name = 'tech_' . $profile->id . '_' . uniqid('', true) . '.' . $ext;
+        $name = 'tech_'.$profile->id.'_'.uniqid('', true).'.'.$ext;
         // Private disk: local driver in dev, azure driver in prod (config only).
-        $path = $file->storeAs('verification/' . $profile->id, $name, 'private');
+        $path = $file->storeAs('verification/'.$profile->id, $name, 'private');
 
         return $profile->documents()->create([
             'document_type' => $type,
@@ -58,7 +58,8 @@ class VerificationService
                 'reviewed_by' => $admin->id,
                 'reviewed_at' => now(),
             ]);
-            event(new \App\Events\TechnicianVerified($profile, true, null));
+            event(new TechnicianVerified($profile, true, null));
+
             return $profile->fresh();
         });
     }
@@ -76,7 +77,8 @@ class VerificationService
                 'reviewed_at' => now(),
                 'rejection_reason' => $reason,
             ]);
-            event(new \App\Events\TechnicianVerified($profile, false, $reason));
+            event(new TechnicianVerified($profile, false, $reason));
+
             return $profile->fresh();
         });
     }
@@ -87,7 +89,8 @@ class VerificationService
             'verification_status' => 'resubmission_required',
             'rejected_reason' => $reason,
         ]);
-        event(new \App\Events\TechnicianVerified($profile, false, $reason));
+        event(new TechnicianVerified($profile, false, $reason));
+
         return $profile->fresh();
     }
 }

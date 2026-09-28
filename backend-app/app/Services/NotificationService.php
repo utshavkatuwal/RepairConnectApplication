@@ -36,6 +36,7 @@ class NotificationService
             Log::warning('FCM not configured; notification stored without push.', [
                 'notification_id' => $n->id,
             ]);
+
             return;
         }
 

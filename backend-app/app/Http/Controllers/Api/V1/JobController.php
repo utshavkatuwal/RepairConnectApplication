@@ -3,11 +3,8 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-
-use App\Events\JobCreated;
 use App\Http\Requests\ApiRequests\JobTransitionRequest;
-use App\Http\Requests\ApiRequests\ServiceRequestStoreRequest;
-use App\Http\Resources\ApiResources\ServiceRequestResource;
+use App\Http\Resources\ApiResources\JobResource;
 use App\Models\Job;
 use App\Models\ServiceRequest;
 use App\Services\AcceptJobService;
@@ -47,7 +44,7 @@ class JobController extends Controller
 
         return response()->json([
             'success' => true, 'message' => 'Job.',
-            'data' => new \App\Http\Resources\ApiResources\JobResource($job),
+            'data' => new JobResource($job),
         ]);
     }
 
@@ -59,7 +56,7 @@ class JobController extends Controller
 
         return response()->json([
             'success' => true, 'message' => 'Jobs.',
-            'data' => \App\Http\Resources\ApiResources\JobResource::collection($rows)->toArray($request),
+            'data' => JobResource::collection($rows)->toArray($request),
             'meta' => ['total' => $rows->total()],
         ]);
     }

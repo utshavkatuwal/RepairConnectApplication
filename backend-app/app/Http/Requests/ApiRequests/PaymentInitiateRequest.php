@@ -2,9 +2,7 @@
 
 namespace App\Http\Requests\ApiRequests;
 
-use App\Enums\Role;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class PaymentInitiateRequest extends FormRequest
 {
@@ -23,4 +21,3 @@ class PaymentInitiateRequest extends FormRequest
         ];
     }
 }
-

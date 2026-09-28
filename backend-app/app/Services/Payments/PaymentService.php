@@ -8,9 +8,7 @@ use App\Models\Job;
 use App\Models\Payment;
 use App\Models\PlatformSetting;
 use App\Models\User;
-use App\Models\WalletTransaction;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 class PaymentService
 {
@@ -74,7 +72,7 @@ class PaymentService
     {
         $result = $this->gateway($provider)->verify($payload);
 
-        return DB::transaction(function () use ($provider, $result) {
+        return DB::transaction(function () use ($result) {
             $payment = Payment::where('provider_transaction_id', $result['provider_ref'])
                 ->lockForUpdate()
                 ->first();
@@ -153,4 +151,3 @@ class PaymentService
         });
     }
 }
-

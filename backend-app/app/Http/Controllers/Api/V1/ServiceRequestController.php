@@ -2,15 +2,11 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Http\Controllers\Controller;
-
 use App\Events\JobCreated;
-use App\Http\Requests\ApiRequests\JobTransitionRequest;
+use App\Http\Controllers\Controller;
 use App\Http\Requests\ApiRequests\ServiceRequestStoreRequest;
 use App\Http\Resources\ApiResources\ServiceRequestResource;
-use App\Models\Job;
 use App\Models\ServiceRequest;
-use App\Services\AcceptJobService;
 use App\Services\JobLifecycleService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
@@ -72,4 +68,3 @@ class ServiceRequestController extends Controller
         return response()->json(['success' => true, 'message' => 'Request cancelled.', 'data' => []]);
     }
 }
-

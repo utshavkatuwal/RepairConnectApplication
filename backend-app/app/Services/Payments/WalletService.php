@@ -2,15 +2,10 @@
 
 namespace App\Services\Payments;
 
-use App\Enums\PaymentStatus;
-use App\Events\PaymentSuccessful;
-use App\Models\Job;
-use App\Models\Payment;
-use App\Models\PlatformSetting;
 use App\Models\User;
 use App\Models\WalletTransaction;
+use App\Models\WithdrawalRequest;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 class WalletService
 {
@@ -33,6 +28,7 @@ class WalletService
                 'description' => $note,
             ]);
             $tx->update(['balance_after' => $this->balance($techId)]);
+
             return $tx->fresh();
         });
     }
@@ -42,13 +38,13 @@ class WalletService
         return $this->credit($techId, $amount, $type, $refType, $refId, $note);
     }
 
-    public function requestWithdrawal(User $tech, float $amount, string $method, string $account): \App\Models\WithdrawalRequest
+    public function requestWithdrawal(User $tech, float $amount, string $method, string $account): WithdrawalRequest
     {
         abort_unless($tech->isRole('technician'), 403);
         abort_if($amount <= 0, 422, 'Amount must be positive.');
         abort_unless($this->balance($tech->id) >= $amount, 422, 'Insufficient withdrawable balance.');
 
-        return \App\Models\WithdrawalRequest::create([
+        return WithdrawalRequest::create([
             'technician_id' => $tech->id,
             'amount' => $amount,
             'method' => $method,
@@ -58,12 +54,12 @@ class WalletService
     }
 
     /** Admin decision with ledger movement only on payout. */
-    public function decideWithdrawal(User $admin, \App\Models\WithdrawalRequest $w, string $decision, ?string $note = null): \App\Models\WithdrawalRequest
+    public function decideWithdrawal(User $admin, WithdrawalRequest $w, string $decision, ?string $note = null): WithdrawalRequest
     {
         abort_unless($admin->isAdmin(), 403);
 
         return DB::transaction(function () use ($admin, $w, $decision, $note) {
-            $locked = \App\Models\WithdrawalRequest::whereKey($w->id)->lockForUpdate()->firstOrFail();
+            $locked = WithdrawalRequest::whereKey($w->id)->lockForUpdate()->firstOrFail();
             abort_unless($locked->status === 'pending', 409, 'Withdrawal is no longer pending.');
 
             if ($decision === 'paid') {
