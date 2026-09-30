@@ -64,7 +64,7 @@ class ApiChatService implements ChatService {
     try {
       final r = await api.dio.post(
           '/api/v1/conversations/$conversationId/messages',
-          data: {'body': body});
+          data: {'message': body});
       final d = Map<String, dynamic>.from(
           (Map<String, dynamic>.from(r.data as Map))['data'] as Map);
       return ChatMessage.fromJson(d);

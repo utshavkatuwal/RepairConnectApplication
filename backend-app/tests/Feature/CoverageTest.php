@@ -142,4 +142,25 @@ class CoverageTest extends TestCase
 
         return [$customer, $job];
     }
+
+    public function test_review_update_delete_and_report(): void
+    {
+        [$customer, $job, $review] = $this->reviewedJob();
+        $ctoken = $customer->createToken('c')->plainTextToken;
+
+        $this->authed('PATCH', "/api/v1/reviews/{$review->id}", $ctoken, [
+            'rating' => 4, 'comment' => 'Good work',
+        ])->assertOk()->assertJsonPath('data.rating', 4);
+
+        $stranger = User::factory()->create(['role' => 'customer', 'status' => 'active']);
+        $this->authed('DELETE', "/api/v1/reviews/{$review->id}", $stranger->createToken('s')->plainTextToken)
+            ->assertForbidden();
+
+        $this->authed('POST', "/api/v1/reviews/{$review->id}/report", $ctoken, [
+            'reason' => 'Inappropriate content here',
+        ])->assertOk();
+
+        $this->authed('DELETE', "/api/v1/reviews/{$review->id}", $ctoken)->assertOk();
+        $this->assertDatabaseMissing('reviews', ['id' => $review->id]);
+    }
 }

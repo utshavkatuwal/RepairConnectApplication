@@ -60,6 +60,33 @@ class ReviewController extends Controller
         return response()->json(['success' => true, 'message' => 'Review recorded.', 'data' => $review], 201);
     }
 
+    public function update(Request $request, int $id)
+    {
+        $review = Review::findOrFail($id);
+        abort_unless($request->user()->id === $review->customer_id, 403, 'Only the author can edit.');
+        $request->validate([
+            'rating' => ['sometimes', 'integer', 'min:1', 'max:5'],
+            'comment' => ['nullable', 'string', 'max:1000'],
+        ]);
+        $review->update($request->only(
+            array_filter(['rating', 'comment'], fn ($k) => $request->has($k))
+        ));
+
+        return response()->json(['success' => true, 'message' => 'Review updated.', 'data' => $review->fresh()]);
+    }
+
+    public function destroy(Request $request, int $id)
+    {
+        $review = Review::findOrFail($id);
+        abort_unless(
+            $request->user()->id === $review->customer_id || $request->user()->isAdmin(),
+            403, 'Only the author or an admin can delete.'
+        );
+        $review->delete();
+
+        return response()->json(['success' => true, 'message' => 'Review deleted.', 'data' => []]);
+    }
+
     public function report(Request $request, int $id)
     {
         $request->validate(['reason' => ['required', 'string', 'min:5']]);

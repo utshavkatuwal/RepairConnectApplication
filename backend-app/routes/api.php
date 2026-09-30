@@ -49,6 +49,8 @@ Route::prefix('v1')->group(function () {
             Route::get('service-requests/{id}', [ServiceRequestController::class, 'show']);
             Route::post('service-requests/{id}/cancel', [ServiceRequestController::class, 'cancel']);
             Route::post('reviews', [ReviewController::class, 'store']);
+            Route::patch('reviews/{id}', [ReviewController::class, 'update']);
+            Route::delete('reviews/{id}', [ReviewController::class, 'destroy']);
             Route::post('reviews/{id}/report', [ReviewController::class, 'report']);
             Route::post('complaints', [ComplaintController::class, 'store']);
         });

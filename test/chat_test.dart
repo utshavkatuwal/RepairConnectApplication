@@ -42,4 +42,20 @@ void main() {
         ChatMessage.fromJson({'id': 1, 'body': 'x', 'type': 'image'});
     expect(b.type, 'image');
   });
+
+  test('parses real backend message shape', () {
+    final m = ChatMessage.fromJson({
+      'id': 9,
+      'conversation_id': 1,
+      'sender_id': 6,
+      'message': 'Hello from customer',
+      'message_type': 'text',
+      'created_at': '2026-09-28T12:00:00Z',
+      'read_at': null,
+    });
+    expect(m.body, 'Hello from customer');
+    expect(m.type, 'text');
+    expect(m.read, false);
+    expect(m.toJson()['message'], 'Hello from customer');
+  });
 }

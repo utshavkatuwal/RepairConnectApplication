@@ -218,15 +218,14 @@ class ChatMessage {
         id: '${j['id']}',
         conversationId: '${j['conversation_id'] ?? ''}',
         senderId: '${j['sender_id'] ?? ''}',
-        body: '${j['body'] ?? j['content'] ?? ''}',
-        type: '${j['type'] ?? 'text'}',
+        body: '${j['message'] ?? j['body'] ?? j['content'] ?? ''}',
+        type: '${j['message_type'] ?? j['type'] ?? 'text'}',
         createdAt: '${j['created_at'] ?? ''}',
-        read: (j['read'] ?? j['is_read'] ?? false) == true,
+        read: (j['read'] ?? j['is_read'] ?? j['read_at'] != null) == true,
       );
   Map<String, dynamic> toJson() => {
-        'conversation_id': conversationId,
-        'body': body,
-        'type': type,
+        'message': body,
+        'message_type': type,
       };
 }
 
