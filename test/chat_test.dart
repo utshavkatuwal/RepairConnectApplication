@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:repairconnect/services/chat/chat_service.dart';
+import 'helpers/fakes.dart';
 import 'package:repairconnect/shared/models/models.dart';
 
 void main() {

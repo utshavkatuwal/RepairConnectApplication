@@ -134,6 +134,8 @@ class ServiceRequest {
   final String status;
   final String? preferredAt;
   final String? address;
+  final String? title;
+  final double? km;
   const ServiceRequest(
       {required this.id,
       required this.customerId,
@@ -141,15 +143,20 @@ class ServiceRequest {
       required this.description,
       required this.status,
       this.preferredAt,
-      this.address});
+      this.address,
+      this.title,
+      this.km});
   factory ServiceRequest.fromJson(Map<String, dynamic> j) => ServiceRequest(
         id: '${j['id']}',
         customerId: '${j['customer_id'] ?? ''}',
         serviceId: '${j['service_id'] ?? j['specialty_id'] ?? ''}',
-        description: '${j['description'] ?? ''}',
+        description: '${j['description'] ?? j['title'] ?? ''}',
         status: normalizeStatus('${j['status'] ?? 'REQUESTED'}'),
-        preferredAt: j['preferred_at']?.toString(),
+        preferredAt: j['preferred_at']?.toString() ??
+            j['scheduled_at']?.toString(),
         address: j['address']?.toString(),
+        title: j['title']?.toString(),
+        km: j['km'] == null ? null : double.tryParse('${j['km']}'),
       );
 }
 

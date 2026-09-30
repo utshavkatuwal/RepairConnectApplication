@@ -7,6 +7,7 @@ import '../../../core/auth/role_guards.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/theme_mode.dart';
 import '../../../core/widgets/rc_widgets.dart';
+import '../../../shared/models/models.dart';
 import '../../../theme.dart';
 
 class TechDashboardScreen extends ConsumerWidget {
@@ -52,86 +53,179 @@ class TechDashboardScreen extends ConsumerWidget {
           BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          const AvailabilityToggle(),
-          const SizedBox(height: 12),
-          RcCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('TODAY — 3 JOBS',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
-                        color: RepairColors.tealOn(context))),
-                const SizedBox(height: 6),
-                Text('09:00 Anesthesia Vent Calibration — SCHEDULED',
-                    style: TextStyle(fontSize: 12, color: RepairColors.headingOn(context))),
-                Text('13:00 Washer Diagnostics — ACCEPTED',
-                    style: TextStyle(fontSize: 12, color: RepairColors.headingOn(context))),
-                Text('16:00 HVAC Filter — REQUESTED',
-                    style: TextStyle(fontSize: 12, color: RepairColors.mutedOn(context))),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          RcCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('ACTIVE JOB',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
-                        color: RepairColors.tealOn(context))),
-                const SizedBox(height: 6),
-                Text('Anesthesia Vent Calibration — IPC-9028-T',
-                    style: TextStyle(fontWeight: FontWeight.w700, color: RepairColors.headingOn(context))),
-                Text('St. Jude Research Wing • Today 09:00',
-                    style: TextStyle(fontSize: 12, color: RepairColors.mutedOn(context))),
-                const SizedBox(height: 10),
-                RcButton(
-                    label: 'Open job',
-                    onPressed: () => context.go('${AppRoutes.bookingDetail}/b-demo')),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          RcCard(
-            onTap: () => context.go(AppRoutes.techEarnings),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('EARNINGS',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
-                        color: RepairColors.tealOn(context))),
-                Text('\$1,284.00',
-                    style: TextStyle(
-                        fontSize: 26, fontWeight: FontWeight.w800, color: RepairColors.headingOn(context))),
-                Text('12 completed • 2 pending payout — tap for details',
-                    style: TextStyle(fontSize: 12, color: RepairColors.mutedOn(context))),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          RcButton(
-              label: 'Manage availability',
-              outline: true,
-              onPressed: () => context.go(AppRoutes.techAvailability)),
-        ],
+      body: FutureBuilder<List<Booking>>(
+        future: ref.watch(bookingsRepoProvider).myBookings(),
+        builder: (ctx, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            return AsyncStateView(
+                loading: false,
+                failure: snap.error,
+                onRetry: () => (context as Element).markNeedsBuild(),
+                onLogin: () async {
+                  await ref.read(authProvider.notifier).expire();
+                  if (context.mounted) context.go(AppRoutes.login);
+                },
+                child: const SizedBox());
+          }
+          final jobs = snap.data ?? [];
+          final active = jobs.where((j) =>
+              j.status != JobStatus.completed &&
+              j.status != JobStatus.cancelled &&
+              j.status != JobStatus.disputed);
+          final current = active.isEmpty ? null : active.first;
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              const AvailabilityToggle(),
+              const SizedBox(height: 12),
+              RcCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('MY JOBS (${jobs.length})',
+                        style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: RepairColors.tealOn(context))),
+                    const SizedBox(height: 6),
+                    if (jobs.isEmpty)
+                      Text('No jobs yet. New requests appear under Requests once approved.',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: RepairColors.mutedOn(context))),
+                    for (final j in jobs.take(5))
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text('${j.id} — ${j.status}',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: RepairColors.headingOn(context))),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (current != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: RcCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('ACTIVE JOB',
+                            style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: RepairColors.tealOn(context))),
+                        const SizedBox(height: 6),
+                        Text('Booking ${current.id} — ${current.status}',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: RepairColors.headingOn(context))),
+                        const SizedBox(height: 10),
+                        RcButton(
+                            label: 'Open job',
+                            onPressed: () => context.go(
+                                '${AppRoutes.bookingDetail}/${current.id}')),
+                      ],
+                    ),
+                  ),
+                ),
+              RcCard(
+                onTap: () => context.go(AppRoutes.techEarnings),
+                child: FutureBuilder<double>(
+                  future:
+                      ref.watch(walletRepoProvider).balance(),
+                  builder: (c2, bSnap) {
+                    final bal = bSnap.data;
+                    return Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        Text('EARNINGS',
+                            style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color:
+                                    RepairColors.tealOn(context))),
+                        Text(
+                            bal == null
+                                ? '…'
+                                : '\$${bal.toStringAsFixed(2)}',
+                            style: TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w800,
+                                color: RepairColors.headingOn(
+                                    context))),
+                        Text('Tap for ledger and withdrawals',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: RepairColors.mutedOn(
+                                    context))),
+                      ],
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+              RcButton(
+                  label: 'Manage availability',
+                  outline: true,
+                  onPressed: () =>
+                      context.go(AppRoutes.techAvailability)),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
-class AvailabilityToggle extends StatefulWidget {
+class AvailabilityToggle extends ConsumerStatefulWidget {
   const AvailabilityToggle({super.key});
   @override
-  State<AvailabilityToggle> createState() => _AState();
+  ConsumerState<AvailabilityToggle> createState() => _AState();
 }
 
-class _AState extends State<AvailabilityToggle> {
+class _AState extends ConsumerState<AvailabilityToggle> {
   bool _on = true;
+  bool _busy = false;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() async {
+      try {
+        final p = await ref
+            .read(catalogRepoProvider)
+            .technicianProfile();
+        if (mounted) {
+          setState(() {
+            _on = p['availability_status'] != 'offline';
+            _loading = false;
+          });
+        }
+      } catch (_) {
+        if (mounted) setState(() => _loading = false);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const RcCard(
+          child: Center(
+              child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2))));
+    }
     return RcCard(
       child: Row(
         children: [
@@ -141,30 +235,80 @@ class _AState extends State<AvailabilityToggle> {
               children: [
                 Text('Availability',
                     style: TextStyle(
-                        fontWeight: FontWeight.w700, color: RepairColors.headingOn(context))),
+                        fontWeight: FontWeight.w700,
+                        color: RepairColors.headingOn(context))),
                 Text(_on ? 'Online — can accept jobs' : 'Offline',
                     style: TextStyle(
-                        fontSize: 12, color: RepairColors.mutedOn(context))),
+                        fontSize: 12,
+                        color: RepairColors.mutedOn(context))),
               ],
             ),
           ),
-          Switch(value: _on, onChanged: (v) => setState(() => _on = v)),
+          _busy
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child:
+                      CircularProgressIndicator(strokeWidth: 2))
+              : Switch(
+                  value: _on,
+                  onChanged: (v) async {
+                    final messenger =
+                        ScaffoldMessenger.of(context);
+                    setState(() => _busy = true);
+                    try {
+                      await ref
+                          .read(technicianRepoProvider)
+                          .setAvailability(
+                              v ? 'online' : 'offline');
+                      setState(() => _on = v);
+                    } catch (e) {
+                      messenger.showSnackBar(SnackBar(
+                          content: Text(e.toString())));
+                    } finally {
+                      if (mounted) {
+                        setState(() => _busy = false);
+                      }
+                    }
+                  }),
         ],
       ),
     );
   }
 }
 
-class TechRequestsScreen extends ConsumerWidget {
+class TechRequestsScreen extends ConsumerStatefulWidget {
   const TechRequestsScreen({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TechRequestsScreen> createState() =>
+      _RequestsState();
+}
+
+class _RequestsState extends ConsumerState<TechRequestsScreen> {
+  String? _busyId;
+  String? _err;
+
+  Future<void> _accept(ServiceRequest r) async {
+    setState(() {
+      _busyId = r.id;
+      _err = null;
+    });
+    try {
+      final job =
+          await ref.read(bookingsRepoProvider).acceptRequest(r.id);
+      if (!mounted) return;
+      context.go('${AppRoutes.bookingDetail}/${job.id}');
+    } catch (e) {
+      setState(() => _err = e.toString());
+    } finally {
+      if (mounted) setState(() => _busyId = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final user = ref.watch(authProvider).valueOrNull;
     final allowed = user == null ? true : techAcceptAllowed(user);
-    final items = [
-      ('req-101', 'Washer Diagnostics', 'Customer reports no-spin + leak.', 'REQUESTED'),
-      ('req-102', 'HVAC Filter + Calibration', 'Clinic wing B, restricted access.', 'REQUESTED'),
-    ];
     return Scaffold(
       appBar: const RcBackAppBar(
           title: 'Incoming requests',
@@ -182,67 +326,114 @@ class TechRequestsScreen extends ConsumerWidget {
                 border: Border.all(color: RepairColors.copper),
               ),
               child: Text(
-                  'Verification pending — you can review requests but Accept unlocks after approval.',
-                  style: const TextStyle(fontSize: 12, color: Colors.white)),
+                  'Verification ${user.techStatus} — Accept unlocks after approval. Your status comes from the backend.',
+                  style: const TextStyle(
+                      fontSize: 12, color: Colors.white)),
             ),
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: items.length,
-              itemBuilder: (_, i) {
-                final r = items[i];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: RcCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(r.$2,
-                            style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: RepairColors.headingOn(context))),
-                        Text(r.$3,
-                            style: TextStyle(
-                                fontSize: 12,
-                                color: RepairColors.mutedOn(context))),
-                        const SizedBox(height: 10),
-                        Row(
+            child: FutureBuilder<List<ServiceRequest>>(
+              future:
+                  ref.watch(catalogRepoProvider).openRequests(),
+              builder: (ctx, snap) {
+                if (snap.connectionState ==
+                    ConnectionState.waiting) {
+                  return const Center(
+                      child: CircularProgressIndicator());
+                }
+                if (snap.hasError) {
+                  return AsyncStateView(
+                      loading: false,
+                      failure: snap.error,
+                      onRetry: () =>
+                          (context as Element).markNeedsBuild(),
+                      onLogin: () async {
+                        await ref
+                            .read(authProvider.notifier)
+                            .expire();
+                        if (context.mounted) {
+                          context.go(AppRoutes.login);
+                        }
+                      },
+                      child: const SizedBox());
+                }
+                final items = snap.data ?? [];
+                if (items.isEmpty) {
+                  return const AsyncStateView(
+                      loading: false,
+                      empty: true,
+                      emptyText:
+                          'No open requests match your specialty and area right now.',
+                      child: SizedBox());
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: items.length,
+                  itemBuilder: (_, i) {
+                    final r = items[i];
+                    return Padding(
+                      padding:
+                          const EdgeInsets.only(bottom: 10),
+                      child: RcCard(
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                                child: RcButton(
-                                    label: allowed
-                                        ? 'Accept'
-                                        : 'Pending approval',
-                                    onPressed: allowed
-                                        ? () => context.go(
-                                            '${AppRoutes.bookingDetail}/${r.$1}')
-                                        : null)),
-                            const SizedBox(width: 10),
-                            Expanded(
-                                child: RcButton(
-                                    label: 'Reject',
-                                    outline: true,
-                                    onPressed: () => ScaffoldMessenger.of(
-                                            context)
-                                        .showSnackBar(const SnackBar(
-                                            content: Text(
-                                                'Request declined.'))))),
+                            Text(
+                                r.title ?? 'Service request',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: RepairColors.headingOn(
+                                        context))),
+                            Text(
+                                '${r.description}${r.km == null ? '' : ' • ${r.km!.toStringAsFixed(1)} km'}',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: RepairColors.mutedOn(
+                                        context))),
+                            const SizedBox(height: 10),
+                            if (_err != null && _busyId == null)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.only(bottom: 8),
+                                child: Text(_err!,
+                                    style: const TextStyle(
+                                        fontSize: 11,
+                                        color: RepairColors.red)),
+                              ),
+                            Row(
+                              children: [
+                                Expanded(
+                                    child: RcButton(
+                                        label: allowed
+                                            ? 'Accept'
+                                            : 'Pending approval',
+                                        loading:
+                                            _busyId == r.id,
+                                        onPressed: allowed &&
+                                                _busyId == null
+                                            ? () => _accept(r)
+                                            : null)),
+                              ],
+                            ),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                  onPressed: () =>
+                                      ScaffoldMessenger.of(
+                                              context)
+                                          .showSnackBar(
+                                              const SnackBar(
+                                                  content: Text(
+                                                      'Reported. Admin will review.'))),
+                                  child: Text('Report request',
+                                      style: TextStyle(
+                                          fontSize: 11))),
+                            ),
                           ],
                         ),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                              onPressed: () => ScaffoldMessenger.of(
-                                      context)
-                                  .showSnackBar(const SnackBar(
-                                      content: Text(
-                                          'Reported. Admin will review.'))),
-                              child: Text('Report request',
-                                  style: TextStyle(fontSize: 11))),
-                        ),
-                      ],
-                    ),
-                  ),
+                      ),
+                    );
+                  },
                 );
               },
             ),

@@ -1,5 +1,4 @@
 import 'dart:async';
-import '../../core/security/input_safety.dart';
 import '../../core/network/dio_client.dart';
 import '../../shared/models/models.dart';
 
@@ -10,57 +9,6 @@ abstract class ChatService {
   Future<List<ChatMessage>> history(String conversationId);
   Future<ChatMessage> send(String conversationId, String body);
   Future<void> markRead(String conversationId);
-}
-
-/// Dev/offline-capable in-memory impl with live broadcast stream.
-class InMemoryChatService implements ChatService {
-  final Map<String, List<ChatMessage>> _store = {};
-  final Map<String, StreamController<ChatMessage>> _ctrls = {};
-
-  StreamController<ChatMessage> _ctrl(String id) =>
-      _ctrls.putIfAbsent(id, () => StreamController.broadcast());
-
-  @override
-  Stream<ChatMessage> stream(String conversationId) =>
-      _ctrl(conversationId).stream;
-
-  @override
-  Future<List<ChatMessage>> history(String conversationId) async =>
-      List.of(_store[conversationId] ?? []);
-
-  @override
-  Future<ChatMessage> send(String conversationId, String body) async {
-    final clean = sanitizeText(body, max: 2000);
-    if (clean.isEmpty) {
-      throw ArgumentError('Message body required');
-    }
-    final m = ChatMessage(
-        id: DateTime.now().microsecondsSinceEpoch.toString(),
-        conversationId: conversationId,
-        senderId: 'me',
-        body: clean,
-        createdAt: DateTime.now().toIso8601String(),
-        read: false);
-    _store.putIfAbsent(conversationId, () => []).add(m);
-    _ctrl(conversationId).add(m);
-    return m;
-  }
-
-  @override
-  Future<void> markRead(String conversationId) async {
-    final list = _store[conversationId];
-    if (list == null) return;
-    _store[conversationId] = [
-      for (final m in list)
-        ChatMessage(
-            id: m.id,
-            conversationId: m.conversationId,
-            senderId: m.senderId,
-            body: m.body,
-            createdAt: m.createdAt,
-            read: true),
-    ];
-  }
 }
 
 /// Production HTTP impl: history/send/markRead via REST; stream() polls

@@ -133,7 +133,7 @@ class PaymentService
         abort_unless($admin->isAdmin(), 403);
         abort_unless($payment->status === 'successful', 422, 'Only successful payments can be refunded.');
 
-        return DB::transaction(function () use ($payment, $reason) {
+        return DB::transaction(function () use ($admin, $payment, $reason) {
             $locked = Payment::whereKey($payment->id)->lockForUpdate()->firstOrFail();
             abort_unless($locked->status === 'successful', 409, 'Payment is no longer refundable.');
 
@@ -146,6 +146,7 @@ class PaymentService
                 $locked->technician_id, -((float) $locked->technician_amount), 'refund',
                 Payment::class, $locked->id, "Refund: {$reason}"
             );
+            \App\Models\AuditLog::record($admin, 'payment.refunded', Payment::class, $locked->id, ['reason' => $reason]);
 
             return $locked->fresh();
         });

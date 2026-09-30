@@ -9,8 +9,13 @@ import '../services/payments/payments_repo.dart';
 import '../features/marketplace/data/repos.dart';
 import '../features/auth/data/auth_repo.dart';
 import '../features/reviews/data/reviews_repo.dart';
+import '../features/technician/data/tech_repo.dart';
+import '../features/wallet/data/wallet_repo.dart';
+import '../features/admin/data/admin_repo.dart';
 
-// Core singletons.
+// Production dependency graph: every provider resolves to a REAL
+// API-backed implementation. Test fakes live in test/helpers/fakes.dart
+// and are never referenced here.
 final sessionStoreProvider = Provider((_) => SessionStore());
 final dioClientProvider =
     Provider((ref) => DioClient(sessions: ref.watch(sessionStoreProvider)));
@@ -20,22 +25,27 @@ final catalogRepoProvider =
     Provider((ref) => CatalogRepository(ref.watch(dioClientProvider)));
 final bookingsRepoProvider =
     Provider((ref) => BookingsRepository(ref.watch(dioClientProvider)));
-final chatServiceProvider = Provider<ChatService>((_) => InMemoryChatService());
-final locationServiceProvider =
-    Provider<LocationService>((_) => FakeLocationService());
-// Production swap (no UI change): CartoLocationService(api: dio),
-// ApiChatService(dio), ApiPaymentsRepository(dio), ApiNotificationsRepository(dio).
+final chatServiceProvider = Provider<ChatService>(
+    (ref) => ApiChatService(ref.watch(dioClientProvider)));
+final locationServiceProvider = Provider<LocationService>(
+    (ref) => CartoLocationService(api: ref.watch(dioClientProvider)));
 final pushServiceProvider = Provider<PushService>((_) => NoopPushService());
-final paymentsRepoProvider =
-    Provider<PaymentsRepository>((_) => FakePaymentsRepository());
+final paymentsRepoProvider = Provider<PaymentsRepository>(
+    (ref) => ApiPaymentsRepository(ref.watch(dioClientProvider)));
 final notificationsRepoProvider = Provider<NotificationsRepository>(
     (ref) => ApiNotificationsRepository(ref.watch(dioClientProvider)));
-final reviewsRepoProvider = Provider<ReviewsRepository>(
-    (ref) => FakeReviewsRepository());
 final notificationCenterProvider = Provider<NotificationCenter>(
     (ref) => NotificationCenter(ref.watch(notificationsRepoProvider)));
+final reviewsRepoProvider = Provider<ReviewsRepository>(
+    (ref) => ApiReviewsRepository(ref.watch(dioClientProvider)));
+final walletRepoProvider = Provider<WalletRepository>(
+    (ref) => WalletRepository(ref.watch(dioClientProvider)));
+final technicianRepoProvider = Provider<TechnicianRepository>(
+    (ref) => TechnicianRepository(ref.watch(dioClientProvider)));
+final adminRepoProvider = Provider<AdminRepository>(
+    (ref) => AdminRepository(ref.watch(dioClientProvider)));
 
-// Auth state: null = unknown/splash, User = signed in.
+// Auth state: null = signed out, User = signed in (backend-verified).
 class AuthState extends StateNotifier<AsyncValue<User?>> {
   final AuthRepository repo;
   AuthState(this.repo) : super(const AsyncValue.data(null));
@@ -78,13 +88,6 @@ class AuthState extends StateNotifier<AsyncValue<User?>> {
     state = const AsyncValue.data(null);
   }
 
-  /// Server reported 401 and refresh failed: drop to logged-out so the
-  /// router sends the user to login (§21 unauthorized state).
-  Future<void> expire() async {
-    await repo.logout();
-    state = const AsyncValue.data(null);
-  }
-
   Future<void> verify(String email, String code) async {
     state = const AsyncValue.loading();
     try {
@@ -100,6 +103,13 @@ class AuthState extends StateNotifier<AsyncValue<User?>> {
 
   Future<void> reset(String email, String token, String password) =>
       repo.resetPassword(email: email, token: token, password: password);
+
+  /// Server reported 401 and refresh failed: drop to logged-out so the
+  /// router sends the user to login (§21 unauthorized state).
+  Future<void> expire() async {
+    await repo.logout();
+    state = const AsyncValue.data(null);
+  }
 }
 
 final authProvider =

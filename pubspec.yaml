@@ -39,6 +39,7 @@ dependencies:
   uuid: ^4.4.0
   connectivity_plus: ^6.1.0
   geolocator: ^13.0.1
+  file_picker: 11.0.0
 
 dev_dependencies:
   flutter_test:

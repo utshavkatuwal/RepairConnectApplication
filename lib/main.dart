@@ -13,5 +13,6 @@ Future<void> main() async {
     // .env optional; AppEnv falls back to localhost + fake backend.
   }
   Env.apiBaseUrl = AppEnv.apiBaseUrl;
+  AppEnv.validate();
   runApp(const ProviderScope(child: RepairConnectApp()));
 }

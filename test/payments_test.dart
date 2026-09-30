@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:repairconnect/features/payments/domain/payment_machine.dart';
-import 'package:repairconnect/services/payments/payments_repo.dart';
+import 'helpers/fakes.dart';
 
 void main() {
   test('payment transitions follow table', () {

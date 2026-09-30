@@ -132,6 +132,27 @@ class TechnicianController extends Controller
         return response()->json(['success' => true, 'message' => 'Location updated.', 'data' => []]);
     }
 
+    /** Own profile with live stats (rating avg, completed count). */
+    public function show(Request $request)
+    {
+        $profile = $request->user()->technicianProfile()->with('specialty')->firstOrFail();
+        $techId = $request->user()->id;
+
+        return response()->json(['success' => true, 'message' => 'Technician profile.', 'data' => [
+            'id' => $profile->id,
+            'specialty' => $profile->specialty?->name,
+            'specialty_id' => $profile->specialty_id,
+            'bio' => $profile->bio,
+            'experience_years' => $profile->experience_years,
+            'service_radius' => $profile->service_radius,
+            'availability_status' => $profile->availability_status,
+            'verification_status' => $profile->verification_status,
+            'rating' => round((float) \App\Models\Review::where('technician_id', $techId)->avg('rating'), 2),
+            'jobs_completed' => \App\Models\Job::where('technician_id', $techId)->where('status', 'completed')->count(),
+            'documents' => $profile->documents()->latest()->get(['id', 'document_type', 'status', 'rejection_reason', 'created_at']),
+        ]]);
+    }
+
     public function specialties()
     {
         return response()->json([

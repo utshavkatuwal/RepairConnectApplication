@@ -32,6 +32,7 @@ class ComplaintController extends Controller
             'assignee_id' => $request->user()->id,
             'resolution' => $request->string('resolution'),
         ]);
+        \App\Models\AuditLog::record($request->user(), 'complaint.resolved', Complaint::class, $c->id);
 
         return response()->json(['success' => true, 'message' => 'Complaint resolved.', 'data' => $c]);
     }

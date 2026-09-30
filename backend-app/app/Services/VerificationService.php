@@ -59,6 +59,7 @@ class VerificationService
                 'reviewed_at' => now(),
             ]);
             event(new TechnicianVerified($profile, true, null));
+            \App\Models\AuditLog::record($admin, 'technician.approved', TechnicianProfile::class, $profile->id);
 
             return $profile->fresh();
         });
@@ -78,6 +79,7 @@ class VerificationService
                 'rejection_reason' => $reason,
             ]);
             event(new TechnicianVerified($profile, false, $reason));
+            \App\Models\AuditLog::record($admin, 'technician.rejected', TechnicianProfile::class, $profile->id, ['reason' => $reason]);
 
             return $profile->fresh();
         });
@@ -90,6 +92,7 @@ class VerificationService
             'rejected_reason' => $reason,
         ]);
         event(new TechnicianVerified($profile, false, $reason));
+        \App\Models\AuditLog::record($admin, 'technician.resubmission_required', TechnicianProfile::class, $profile->id, ['reason' => $reason]);
 
         return $profile->fresh();
     }

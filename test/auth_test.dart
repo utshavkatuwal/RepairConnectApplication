@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:repairconnect/core/auth/role_guards.dart';
 import 'package:repairconnect/core/constants/app_constants.dart';
 import 'package:repairconnect/core/utils/validators.dart';
-import 'package:repairconnect/features/auth/data/auth_repo.dart';
+import 'helpers/fakes.dart';
 import 'package:repairconnect/shared/models/models.dart';
 
 void main() {

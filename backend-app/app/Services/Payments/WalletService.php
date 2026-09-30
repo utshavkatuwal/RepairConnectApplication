@@ -83,6 +83,8 @@ class WalletService
                 $locked->update(['status' => $decision, 'processed_by' => $admin->id, 'processed_at' => now()]);
             }
 
+            \App\Models\AuditLog::record($admin, 'withdrawal.'.$locked->status, WithdrawalRequest::class, $locked->id);
+
             return $locked->fresh();
         });
     }

@@ -514,7 +514,7 @@ class _NotifsState
             ),
           ),
           Expanded(
-            child: FutureBuilder(
+            child: FutureBuilder<List<AppNotification>>(
               future: center.all(),
               builder: (ctx, snap) {
                 if (snap.connectionState ==

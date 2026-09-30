@@ -29,30 +29,63 @@ class _ChatState extends ConsumerState<ChatScreen> {
   StreamSubscription<ChatMessage>? _sub;
   bool _live = false;
 
+  String? _cid;
+
   String get _bookingId {
     final id = widget.conversationId;
     return id.startsWith('conv-') ? id.substring(5) : id;
   }
 
+  /// Numeric conversation id: resolves `conv-{booking}` via the backend.
+  Future<String> _resolveId() async {
+    if (_cid != null) return _cid!;
+    final raw = widget.conversationId;
+    if (!raw.startsWith('conv-')) {
+      _cid = raw;
+      return raw;
+    }
+    final r = await ref
+        .read(dioClientProvider)
+        .getRetry('/api/v1/jobs/$_bookingId/conversation');
+    final body = Map<String, dynamic>.from(r.data as Map);
+    final data = body['data'];
+    final id = data is Map ? '${data['id']}' : '';
+    if (id.isEmpty) throw Exception('No conversation for this job yet.');
+    _cid = id;
+    return id;
+  }
+
   @override
   void initState() {
     super.initState();
-    _load();
-    _sub = ref
-        .read(chatServiceProvider)
-        .stream(widget.conversationId)
-        .listen((m) {
+    _boot();
+  }
+
+  Future<void> _boot() async {
+    try {
+      final id = await _resolveId();
       if (!mounted) return;
-      setState(() {
-        _live = true;
-        if (!_msgs.any((e) => e.id == m.id)) {
-          _msgs = [..._msgs, m];
-        }
+      _sub = ref.read(chatServiceProvider).stream(id).listen((m) {
+        if (!mounted) return;
+        setState(() {
+          _live = true;
+          if (!_msgs.any((e) => e.id == m.id)) {
+            _msgs = [..._msgs, m];
+          }
+        });
+        _jump();
+      }, onError: (_) {
+        if (mounted) setState(() => _live = false);
       });
-      _jump();
-    }, onError: (_) {
-      if (mounted) setState(() => _live = false);
-    });
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _err = e;
+          _loading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -69,9 +102,10 @@ class _ChatState extends ConsumerState<ChatScreen> {
       _err = null;
     });
     try {
+      final id = await _resolveId();
       final svc = ref.read(chatServiceProvider);
-      final h = await svc.history(widget.conversationId);
-      await svc.markRead(widget.conversationId);
+      final h = await svc.history(id);
+      await svc.markRead(id);
       if (!mounted) return;
       setState(() => _msgs = h);
       _jump();
@@ -99,9 +133,9 @@ class _ChatState extends ConsumerState<ChatScreen> {
       _failed = null;
     });
     try {
-      final m = await ref
-          .read(chatServiceProvider)
-          .send(widget.conversationId, t);
+      final id = await _resolveId();
+      final m =
+          await ref.read(chatServiceProvider).send(id, t);
       if (!mounted) return;
       setState(() {
         _c.clear();
@@ -110,7 +144,7 @@ class _ChatState extends ConsumerState<ChatScreen> {
         }
       });
       _jump();
-      ref.read(chatServiceProvider).markRead(widget.conversationId);
+      ref.read(chatServiceProvider).markRead(id);
     } catch (e) {
       if (mounted) {
         setState(() => _failed = t);

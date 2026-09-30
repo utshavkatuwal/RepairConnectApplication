@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:repairconnect/services/notifications/push_service.dart';
 import 'package:repairconnect/shared/models/models.dart';
+import 'helpers/fakes.dart';
 
 AppNotification n(String id, String type, {bool read = false}) =>
     AppNotification(

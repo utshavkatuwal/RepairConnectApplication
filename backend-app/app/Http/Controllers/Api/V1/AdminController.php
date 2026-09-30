@@ -41,8 +41,42 @@ class AdminController extends Controller
         $user = User::findOrFail($id);
         abort_if($user->isRole('super_admin'), 403, 'Super admin cannot be suspended.');
         $user->update(['status' => $user->status === 'suspended' ? 'active' : 'suspended']);
+        \App\Models\AuditLog::record($request->user(), 'user.'.$user->status, User::class, $user->id);
 
         return response()->json(['success' => true, 'message' => "User {$user->status}.", 'data' => []]);
+    }
+
+    public function jobs(Request $request)
+    {
+        $rows = Job::with(['customer:id,name', 'technician:id,name'])
+            ->when($request->input('status'), fn ($q, $s) => $q->where('status', $s))
+            ->latest()->paginate(20);
+
+        return response()->json(['success' => true, 'message' => 'Jobs.', 'data' => $rows->items(), 'meta' => ['total' => $rows->total()]]);
+    }
+
+    public function payments(Request $request)
+    {
+        $rows = Payment::when($request->input('status'), fn ($q, $s) => $q->where('status', $s))
+            ->latest()->paginate(20);
+
+        return response()->json(['success' => true, 'message' => 'Payments.', 'data' => $rows->items(), 'meta' => ['total' => $rows->total()]]);
+    }
+
+    public function complaints(Request $request)
+    {
+        $rows = Complaint::with('reporter:id,name')
+            ->when($request->input('status'), fn ($q, $s) => $q->where('status', $s))
+            ->latest()->paginate(20);
+
+        return response()->json(['success' => true, 'message' => 'Complaints.', 'data' => $rows->items(), 'meta' => ['total' => $rows->total()]]);
+    }
+
+    public function audit()
+    {
+        $rows = \App\Models\AuditLog::with('actor:id,name')->latest()->paginate(50);
+
+        return response()->json(['success' => true, 'message' => 'Audit logs.', 'data' => $rows->items(), 'meta' => ['total' => $rows->total()]]);
     }
 
     public function settings(Request $request)

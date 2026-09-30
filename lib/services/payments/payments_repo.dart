@@ -22,75 +22,6 @@ abstract class PaymentsRepository {
   Future<String> refund(String transactionId, String reason);
 }
 
-class FakePaymentsRepository implements PaymentsRepository {
-  final Map<String, String> _states = {};
-  final Map<String, List<Transaction>> _txs = {};
-
-  @override
-  Future<Map<String, dynamic>> startPayment(
-          {required String bookingId,
-          required double amount,
-          required String idempotencyKey}) async {
-    // Same key → same tx id (idempotent). New key → new record appended.
-    final id = 'tx_$idempotencyKey';
-    if (!_states.containsKey(idempotencyKey)) {
-      _states[idempotencyKey] = 'PENDING';
-      _txs.putIfAbsent(bookingId, () => []).add(Transaction(
-          id: id,
-          paymentId: id,
-          kind: 'CHARGE',
-          amount: amount));
-    }
-    return {
-      'id': id,
-      'booking_id': bookingId,
-      'amount': amount,
-      'status': _states[idempotencyKey],
-    };
-  }
-
-  @override
-  Future<String> status(String transactionId) async {
-    // Fake stays PENDING until server verify — mirrors prod caution.
-    for (final e in _states.entries) {
-      if ('tx_${e.key}' == transactionId) return e.value;
-    }
-    return 'PENDING';
-  }
-
-  @override
-  Future<List<Transaction>> transactions(String bookingId) async =>
-      List.of(_txs[bookingId] ??
-          [
-            Transaction(
-                id: 'tx-seed-1',
-                paymentId: 'tx-seed-1',
-                kind: 'CHARGE',
-                amount: 299),
-          ]);
-
-  @override
-  Future<Invoice?> invoice(String bookingId) async => Invoice(
-      id: 'inv-$bookingId',
-      bookingId: bookingId,
-      total: 299,
-      issuedAt: DateTime.now().toIso8601String());
-
-  @override
-  Future<String> refund(String transactionId, String reason) async {
-    for (final e in _states.entries) {
-      if ('tx_${e.key}' == transactionId) {
-        if (e.value != 'SUCCEEDED') {
-          throw Exception('Only succeeded payments can be refunded');
-        }
-        _states[e.key] = 'REFUNDED';
-        return 'REFUNDED';
-      }
-    }
-    throw Exception('Transaction not found');
-  }
-}
-
 /// Production impl: idempotency via header + body; status server-verified.
 class ApiPaymentsRepository implements PaymentsRepository {
   final DioClient api;
@@ -176,9 +107,10 @@ class ApiPaymentsRepository implements PaymentsRepository {
 
   @override
   Future<String> refund(String transactionId, String reason) async {
+    // Admin-only server endpoint: ledger reversal + audit happen there.
     try {
       final r = await api.dio.post(
-          '/api/v1/transactions/$transactionId/refund',
+          '/api/v1/admin/payments/$transactionId/refund',
           data: {'reason': reason});
       final body = Map<String, dynamic>.from(r.data as Map);
       final data = body['data'] is Map

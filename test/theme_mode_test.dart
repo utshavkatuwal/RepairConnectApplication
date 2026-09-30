@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:repairconnect/app/providers.dart';
 import 'package:repairconnect/core/theme/app_theme.dart';
 import 'package:repairconnect/core/theme/theme_mode.dart';
 import 'package:repairconnect/core/widgets/rc_widgets.dart';
 import 'package:repairconnect/features/customer/presentation/customer_screens.dart';
 import 'package:repairconnect/theme.dart';
+import 'helpers/fakes.dart';
 
 void main() {
   test('theme mode defaults to dark and toggles', () async {
@@ -41,6 +43,13 @@ void main() {
   testWidgets('customer home renders in light mode without overflow',
       (WidgetTester tester) async {
     await tester.pumpWidget(ProviderScope(
+        overrides: [
+          catalogRepoProvider.overrideWithValue(FakeCatalogRepository()),
+          notificationsRepoProvider
+              .overrideWithValue(FakeNotificationsRepository()),
+          locationServiceProvider
+              .overrideWithValue(FakeLocationService()),
+        ],
         child: MaterialApp(
             theme: buildRepairLightTheme(),
             home: const CustomerHomeScreen())));
@@ -64,6 +73,13 @@ void main() {
       errors.add(d.toString());
     };
     await tester.pumpWidget(ProviderScope(
+        overrides: [
+          catalogRepoProvider.overrideWithValue(FakeCatalogRepository()),
+          notificationsRepoProvider
+              .overrideWithValue(FakeNotificationsRepository()),
+          locationServiceProvider
+              .overrideWithValue(FakeLocationService()),
+        ],
         child: MaterialApp(
             theme: buildRepairTheme(),
             home: const CustomerHomeScreen())));

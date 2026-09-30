@@ -4,58 +4,13 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/errors/failures.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/network/api_mapper.dart';
-import '../../../core/config/env.dart';
 import '../../../core/security/input_safety.dart';
 import '../../../shared/models/models.dart';
 import '../../bookings/domain/job_machine.dart'
     show JobMachine;
 
-/// Repositories: Dio -> Laravel REST; USE_FAKE_BACKEND=true -> deterministic
-/// seed data for dev (clearly fake, never prod). No business data hardcoded in widgets.
-
-class Seed {
-  static final categories = [
-    const Category(id: 'c1', name: 'Appliance'),
-    const Category(id: 'c2', name: 'Medical Devices'),
-    const Category(id: 'c3', name: 'HVAC'),
-    const Category(id: 'c4', name: 'Electrical'),
-  ];
-  static final services = [
-    const ServiceItem(
-        id: 's1',
-        categoryId: 'c2',
-        name: 'Anesthesia Vent Calibration',
-        description: 'Certified calibration with telemetry lock.',
-        basePrice: 299),
-    const ServiceItem(
-        id: 's2',
-        categoryId: 'c1',
-        name: 'Washer Diagnostics',
-        description: 'On-site diagnostic + repair estimate.',
-        basePrice: 89),
-  ];
-  static final technicians = [
-    const Technician(
-        id: 't1',
-        userId: 'u-t1',
-        name: 'Dr. Keith Sterling',
-        specialty: 'Surgical Electronics Specialist',
-        rating: 4.95,
-        jobsCompleted: 142,
-        verified: true,
-        available: true,
-        serviceArea: 'St. Jude Research Wing'),
-    const Technician(
-        id: 't2',
-        userId: 'u-t2',
-        name: 'Aris Vance',
-        specialty: 'General Clinical Systems',
-        rating: 4.8,
-        jobsCompleted: 98,
-        verified: true,
-        available: true),
-  ];
-}
+/// Repositories: Dio -> Laravel REST. Every method hits the real API;
+/// failures surface as typed Failures. No business data hardcoded in widgets.
 
 /// Tiny TTL cache for reference data (categories). Booking/payment/chat
 /// data is never cached — always server-verified.
@@ -85,7 +40,6 @@ class CatalogRepository {
   CatalogRepository(this.api);
 
   Future<List<Category>> categories({bool force = false}) async {
-    if (AppEnv.useFakeBackend) return Seed.categories;
     if (!force && _cats.fresh) return _cats.value!;
     try {
       final r = await api.getRetry(ApiRoutes.categories);
@@ -108,23 +62,6 @@ class CatalogRepository {
       String? q,
       int page = 1,
       int perPage = 20}) async {
-    if (AppEnv.useFakeBackend) {
-      final all = Seed.services
-          .where((s) =>
-              (categoryId == null || s.categoryId == categoryId) &&
-              (q == null ||
-                  s.name.toLowerCase().contains(q.toLowerCase())))
-          .toList();
-      return Paged(
-          items: all
-              .skip((page - 1) * perPage)
-              .take(perPage)
-              .toList(),
-          page: page,
-          perPage: perPage,
-          total: all.length,
-          lastPage: (all.length / perPage).ceil().clamp(1, 1 << 30));
-    }
     try {
       final cats = await categories();
       final wanted = {
@@ -169,24 +106,6 @@ class CatalogRepository {
       bool? available,
       int page = 1,
       int perPage = 20}) async {
-    if (AppEnv.useFakeBackend) {
-      final all = Seed.technicians
-          .where((t) =>
-              (q == null ||
-                  t.name.toLowerCase().contains(q.toLowerCase()) ||
-                  t.specialty.toLowerCase().contains(q.toLowerCase())) &&
-              (available == null || t.available == available))
-          .toList();
-      return Paged(
-          items: all
-              .skip((page - 1) * perPage)
-              .take(perPage)
-              .toList(),
-          page: page,
-          perPage: perPage,
-          total: all.length,
-          lastPage: (all.length / perPage).ceil().clamp(1, 1 << 30));
-    }
     try {
       final r = await api.getRetry(ApiRoutes.technicians, query: {
         if (q != null) 'q': q,
@@ -213,6 +132,30 @@ class CatalogRepository {
       (await techniciansPaged(
               q: q, categoryId: categoryId, lat: lat, lng: lng))
           .items;
+
+  /// Open requests visible to an eligible technician (backend enforces
+  /// approval + specialty + radius; 403 while pending).
+  Future<List<ServiceRequest>> openRequests() async {
+    try {
+      final r = await api.getRetry('/api/v1/technician/requests');
+      final body = Map<String, dynamic>.from(r.data as Map);
+      return ApiResponse.list(body, ServiceRequest.fromJson);
+    } catch (e) {
+      throw api.mapError(e);
+    }
+  }
+
+  /// Own technician profile with live stats (rating, completed, docs).
+  Future<Map<String, dynamic>> technicianProfile() async {
+    try {
+      final r = await api.getRetry('/api/v1/technician/profile');
+      final body = Map<String, dynamic>.from(r.data as Map);
+      final data = body['data'];
+      return data is Map ? Map<String, dynamic>.from(data) : {};
+    } catch (e) {
+      throw api.mapError(e);
+    }
+  }
 }
 
 class BookingsRepository {
@@ -229,36 +172,7 @@ class BookingsRepository {
       JobMachine.canActor(role: role, from: from, to: to);
 
   /// Current user's bookings: history, invoices, payments derive from this.
-  /// Fake seeds mirror representative states; prod paginates server-side.
   Future<List<Booking>> myBookings() async {
-    if (AppEnv.useFakeBackend) {
-      return [
-        const Booking(
-            id: 'b-101',
-            requestId: 'req-101',
-            customerId: 'me',
-            technicianId: 't1',
-            status: JobStatus.completed,
-            price: 299,
-            paymentStatus: 'SUCCEEDED'),
-        const Booking(
-            id: 'b-102',
-            requestId: 'req-102',
-            customerId: 'me',
-            technicianId: 't2',
-            status: JobStatus.completed,
-            price: 89,
-            paymentStatus: 'SUCCEEDED'),
-        const Booking(
-            id: 'b-103',
-            requestId: 'req-103',
-            customerId: 'me',
-            technicianId: 't1',
-            status: JobStatus.cancelled,
-            price: 0,
-            paymentStatus: 'REFUNDED'),
-      ];
-    }
     try {
       final r = await api.getRetry(ApiRoutes.bookings,
           query: {'mine': 1, 'per_page': 50});
@@ -283,16 +197,6 @@ class BookingsRepository {
     if (cleanDesc.length < 10) {
       throw const ValidationFailure('Describe the problem (min 10 chars)');
     }
-    if (AppEnv.useFakeBackend) {
-      return ServiceRequest(
-          id: 'req-${DateTime.now().millisecondsSinceEpoch}',
-          customerId: 'me',
-          serviceId: serviceId,
-          description: cleanDesc,
-          status: JobStatus.requested,
-          preferredAt: preferredAt,
-          address: cleanAddr);
-    }
     try {
       // Backend shape: specialty_id/title/description/address/lat/lng.
       final body = serviceRequestBody(
@@ -313,17 +217,23 @@ class BookingsRepository {
     }
   }
 
-  Future<Booking> booking(String id) async {
-    if (AppEnv.useFakeBackend) {
-      return Booking(
-          id: id,
-          requestId: 'req-1',
-          customerId: 'me',
-          technicianId: 't1',
-          status: JobStatus.accepted,
-          price: 299,
-          paymentStatus: 'PENDING');
+  /// Explicit acceptance: backend validates eligibility, locks the
+  /// request, creates the job. Returns the real job or throws the
+  /// backend error (e.g. 409 already taken, 403 not approved).
+  Future<Booking> acceptRequest(String requestId) async {
+    try {
+      final r = await api.dio
+          .post('${ApiRoutes.bookings}/$requestId/accept');
+      final body = Map<String, dynamic>.from(r.data as Map);
+      final env = ApiResponse.envelope(body);
+      return Booking.fromJson(
+          env.data ?? Map<String, dynamic>.from(body['data']));
+    } on DioException catch (e) {
+      throw api.mapError(e);
     }
+  }
+
+  Future<Booking> booking(String id) async {
     try {
       final r = await api.getRetry('${ApiRoutes.bookings}/$id');
       final body = Map<String, dynamic>.from(r.data as Map);
@@ -347,28 +257,6 @@ class BookingsRepository {
     }
     final reasonErr = _validateReason(to, reason);
     if (reasonErr != null) throw ValidationFailure(reasonErr);
-    if (AppEnv.useFakeBackend) {
-      final b = await booking(id);
-      final from = knownFrom ?? b.status;
-      if (!JobStatus.canTransition(from, to)) {
-        throw ValidationFailure(
-            'Cannot move from $from to $to');
-      }
-      if (actorRole != null &&
-          !_canActor(role: actorRole, from: from, to: to)) {
-        throw const ValidationFailure(
-            'Your role cannot perform this transition');
-      }
-      return Booking(
-          id: b.id,
-          requestId: b.requestId,
-          customerId: b.customerId,
-          technicianId: b.technicianId,
-          status: to,
-          price: b.price,
-          paymentStatus: b.paymentStatus,
-          scheduledAt: b.scheduledAt);
-    }
     try {
       // Fetch current to validate locally before POST (fast UX).
       final cur = await booking(id);

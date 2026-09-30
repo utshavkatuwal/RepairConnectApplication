@@ -144,17 +144,3 @@ class ApiListX {
         .toList();
   }
 }
-
-class FakeLocationService implements LocationService {
-  @override
-  Future<bool> ensurePermission() async => true;
-  @override
-  Future<LatLng?> currentPosition() async => const LatLng(6.5244, 3.3792);
-  @override
-  Future<List<TechnicianNearby>> nearbyTechnicians(
-          {required double lat, required double lng, String? categoryId}) async =>
-      const [];
-  @override
-  Future<String?> resolveAddress(double lat, double lng) async =>
-      'Demo address near ${LatLng(lat, lng).label}';
-}

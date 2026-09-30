@@ -2,13 +2,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:repairconnect/core/auth/role_guards.dart';
 import 'package:repairconnect/core/constants/app_constants.dart';
 import 'package:repairconnect/core/utils/validators.dart';
-import 'package:repairconnect/features/auth/data/auth_repo.dart';
+import 'helpers/fakes.dart';
 import 'package:repairconnect/features/bookings/domain/job_machine.dart';
 import 'package:repairconnect/features/payments/domain/payment_machine.dart';
 import 'package:repairconnect/features/reviews/data/reviews_repo.dart';
-import 'package:repairconnect/services/chat/chat_service.dart';
 import 'package:repairconnect/services/notifications/push_service.dart';
-import 'package:repairconnect/services/payments/payments_repo.dart';
 import 'package:repairconnect/shared/models/models.dart';
 
 /// Cross-module flows with fake backends (§27 integration level):

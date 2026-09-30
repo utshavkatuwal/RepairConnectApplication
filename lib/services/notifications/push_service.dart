@@ -1,5 +1,4 @@
 import 'dart:async';
-import '../../core/config/env.dart';
 import '../../core/network/dio_client.dart';
 import '../../shared/models/models.dart';
 
@@ -55,7 +54,7 @@ class PushBootstrap {
       {required void Function(AppNotification) onForeground}) async {
     try {
       final t = await push.token();
-      if (t != null && t.isNotEmpty && !AppEnv.useFakeBackend) {
+      if (t != null && t.isNotEmpty) {
         try {
           await api.dio.post('/api/v1/devices',
               data: {'token': t, 'platform': 'flutter'});
@@ -68,10 +67,10 @@ class PushBootstrap {
   Future<void> stop() async => _sub?.cancel();
 }
 
-/// In-app notification center: server list + locally-recorded domain events
-/// (booking/payment/review/message) merged, unread-counted, streamed to UI.
-/// Server remains source of truth; local records are clearly flagged dev-only
-/// in fake mode and reconciled by refetch in prod.
+/// In-app notification center: server list plus locally-recorded domain
+/// events (booking/payment/review) merged, unread-counted, streamed to UI.
+/// The server list is the source of truth; local records reflect actions
+/// the user just took in this session.
 class NotificationCenter {
   final NotificationsRepository repo;
   final _ctrl = StreamController<AppNotification>.broadcast();
@@ -138,52 +137,12 @@ abstract class NotificationsRepository {
   Future<void> markRead(String id);
 }
 
-class FakeNotificationsRepository implements NotificationsRepository {
-  final List<AppNotification> _items = [
-    AppNotification(
-        id: 'n1',
-        type: 'BOOKING',
-        title: 'Request accepted',
-        body: 'Dr. Keith Sterling accepted IPC-9028-T.',
-        read: false,
-        createdAt: '2025-10-24T09:00:00Z'),
-    AppNotification(
-        id: 'n2',
-        type: 'SYSTEM',
-        title: 'Calibration locked',
-        body: 'Asset IRC-8102 certificate cryptographically locked.',
-        read: true,
-        createdAt: '2025-10-23T10:00:00Z'),
-  ];
-  @override
-  Future<List<AppNotification>> list(
-          {int page = 1, int perPage = 20}) async =>
-      _items.skip((page - 1) * perPage).take(perPage).toList();
-  @override
-  Future<void> markRead(String id) async {
-    final i = _items.indexWhere((e) => e.id == id);
-    if (i < 0) return;
-    final n = _items[i];
-    _items[i] = AppNotification(
-        id: n.id,
-        type: n.type,
-        title: n.title,
-        body: n.body,
-        read: true,
-        createdAt: n.createdAt);
-  }
-}
-
 class ApiNotificationsRepository implements NotificationsRepository {
   final DioClient api;
   ApiNotificationsRepository(this.api);
   @override
   Future<List<AppNotification>> list(
       {int page = 1, int perPage = 20}) async {
-    if (AppEnv.useFakeBackend) {
-      return FakeNotificationsRepository()
-          .list(page: page, perPage: perPage);
-    }
     try {
       final r = await api.getRetry('/api/v1/notifications',
           query: {'page': page, 'per_page': perPage});

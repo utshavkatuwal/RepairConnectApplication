@@ -55,6 +55,7 @@ Route::prefix('v1')->group(function () {
 
         // Technician
         Route::middleware('role:technician')->group(function () {
+            Route::get('technician/profile', [TechnicianController::class, 'show']);
             Route::post('technician/profile', [TechnicianController::class, 'storeProfile']);
             Route::post('technician/documents', [TechnicianController::class, 'uploadDocument']);
             Route::post('technician/availability', [TechnicianController::class, 'availability']);
@@ -91,6 +92,10 @@ Route::prefix('v1')->group(function () {
             Route::post('payments/{id}/refund', [PaymentController::class, 'refund']);
             Route::post('withdrawals/{id}/decide', [WalletController::class, 'decide']);
             Route::post('complaints/{id}/resolve', [ComplaintController::class, 'resolve']);
+            Route::get('jobs', [AdminController::class, 'jobs']);
+            Route::get('payments', [AdminController::class, 'payments']);
+            Route::get('complaints', [AdminController::class, 'complaints']);
+            Route::get('audit', [AdminController::class, 'audit']);
             Route::get('settings', [AdminController::class, 'settings']);
             Route::post('settings', [AdminController::class, 'settings']);
             Route::apiResource('specialties', SpecialtyController::class)->only(['store', 'update', 'destroy']);

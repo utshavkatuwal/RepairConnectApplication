@@ -221,7 +221,7 @@ class _BState extends ConsumerState<BookingDetailScreen> {
               onPressed: () =>
                   context.go('${AppRoutes.chat}/conv-${widget.id}')),
           const SizedBox(height: 12),
-          PaymentPanel(bookingId: widget.id, amount: 299),
+          PaymentPanel(bookingId: widget.id),
           const SizedBox(height: 12),
           ReviewPanel(bookingId: widget.id, bookingStatus: _status),
         ],
@@ -235,22 +235,25 @@ class _BState extends ConsumerState<BookingDetailScreen> {
 
 class PaymentPanel extends ConsumerStatefulWidget {
   final String bookingId;
-  final double amount;
-  const PaymentPanel(
-      {super.key, this.bookingId = 'b-demo', this.amount = 299});
+  const PaymentPanel({super.key, required this.bookingId});
   @override
   ConsumerState<PaymentPanel> createState() => _PState();
 }
 
 class _PState extends ConsumerState<PaymentPanel> {
+  final _amount = TextEditingController();
   String _state = PaymentStatus.pending;
   String? _txId;
   bool _busy = false;
   String? _err;
+
+  double? get _parsed => double.tryParse(_amount.text.trim());
+
   @override
   Widget build(BuildContext context) {
-    final amountErr =
-        PaymentMachine.validateAmount(widget.amount);
+    final amountErr = _amount.text.trim().isEmpty
+        ? 'Enter the agreed amount'
+        : PaymentMachine.validateAmount(_parsed ?? double.nan);
     return RcCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -260,8 +263,20 @@ class _PState extends ConsumerState<PaymentPanel> {
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
                   color: RepairColors.tealOn(context))),
-          Text('State: $_state • \$${widget.amount.toStringAsFixed(2)}',
-              style: TextStyle(color: RepairColors.headingOn(context), fontSize: 13)),
+          Text('State: $_state',
+              style: TextStyle(
+                  color: RepairColors.headingOn(context),
+                  fontSize: 13)),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _amount,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+                labelText: 'AMOUNT (NPR)',
+                hintText: 'Agreed job amount'),
+            onChanged: (_) => setState(() {}),
+          ),
           if (_txId != null)
             Text('Tx: $_txId',
                 style: TextStyle(
@@ -295,7 +310,7 @@ class _PState extends ConsumerState<PaymentPanel> {
                             ref.read(paymentsRepoProvider);
                         final tx = await repo.startPayment(
                             bookingId: widget.bookingId,
-                            amount: widget.amount,
+                            amount: _parsed!,
                             idempotencyKey:
                                 newIdempotencyKey());
                         if (!mounted) return;

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/widgets/rc_widgets.dart';
+import '../../../shared/models/models.dart';
 import '../../payments/domain/payment_machine.dart';
 import '../../../theme.dart';
 
@@ -43,25 +44,17 @@ String decideVerification(String action) {
   }
 }
 
-const _demoUsers = [
-  AdminUser('u-1', 'Demo Customer', 'CUSTOMER', true),
-  AdminUser('u-t1', 'Dr. Keith Sterling', 'TECHNICIAN', true),
-  AdminUser('u-t2', 'Aris Vance', 'TECHNICIAN', false),
-  AdminUser('u-a1', 'Ops Admin', 'ADMIN', true),
-];
-
-class AdminUsersScreen extends StatefulWidget {
+class AdminUsersScreen extends ConsumerStatefulWidget {
   const AdminUsersScreen({super.key});
   @override
-  State<AdminUsersScreen> createState() => _UsersState();
+  ConsumerState<AdminUsersScreen> createState() => _UsersState();
 }
 
-class _UsersState extends State<AdminUsersScreen> {
+class _UsersState extends ConsumerState<AdminUsersScreen> {
   String _q = '';
   String? _role;
   @override
   Widget build(BuildContext context) {
-    final list = filterAdminUsers(_demoUsers, q: _q, role: _role);
     return Scaffold(
       appBar: const RcBackAppBar(
           title: 'User management',
@@ -73,7 +66,7 @@ class _UsersState extends State<AdminUsersScreen> {
             child: TextField(
               onChanged: (v) => setState(() => _q = v),
               decoration: const InputDecoration(
-                  hintText: 'Search name or ID…',
+                  hintText: 'Search name or email…',
                   prefixIcon: Icon(Icons.search, size: 18)),
             ),
           ),
@@ -96,37 +89,95 @@ class _UsersState extends State<AdminUsersScreen> {
           ),
           const SizedBox(height: 8),
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: list.length,
-              itemBuilder: (_, i) {
-                final u = list[i];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: RcCard(
-                      child: Row(children: [
-                    Expanded(
-                        child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                            children: [
-                          Text(u.name,
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  color: RepairColors.headingOn(context))),
-                          Text('${u.role} • ${u.active ? 'Active' : 'Suspended'}',
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  color: RepairColors.mutedOn(context))),
-                        ])),
-                    TextButton(
-                        onPressed: () =>
-                            ScaffoldMessenger.of(context)
-                                .showSnackBar(SnackBar(
-                                    content: Text(
-                                        '${u.active ? 'Suspended' : 'Reactivated'} ${u.name} (audited).'))),
-                        child: Text(u.active ? 'Suspend' : 'Activate')),
-                  ])),
+            child: FutureBuilder<List<User>>(
+              future: ref
+                  .watch(adminRepoProvider)
+                  .users(q: _q.isEmpty ? null : _q, role: _role),
+              builder: (ctx, snap) {
+                if (snap.connectionState ==
+                    ConnectionState.waiting) {
+                  return const Center(
+                      child: CircularProgressIndicator());
+                }
+                if (snap.hasError) {
+                  return AsyncStateView(
+                      loading: false,
+                      failure: snap.error,
+                      onRetry: () => setState(() {}),
+                      onLogin: () async {
+                        await ref
+                            .read(authProvider.notifier)
+                            .expire();
+                        if (context.mounted) {
+                          context.go(AppRoutes.login);
+                        }
+                      },
+                      child: const SizedBox());
+                }
+                final list = snap.data ?? [];
+                if (list.isEmpty) {
+                  return const AsyncStateView(
+                      loading: false,
+                      empty: true,
+                      emptyText: 'No users match.',
+                      child: SizedBox());
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: list.length,
+                  itemBuilder: (_, i) {
+                    final u = list[i];
+                    return Padding(
+                      padding:
+                          const EdgeInsets.only(bottom: 8),
+                      child: RcCard(
+                          child: Row(children: [
+                        Expanded(
+                            child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                              Text(u.name,
+                                  style: TextStyle(
+                                      fontWeight:
+                                          FontWeight.w700,
+                                      color: RepairColors.headingOn(
+                                          context))),
+                              Text('${u.role} • ${u.email}',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: RepairColors
+                                          .mutedOn(context))),
+                            ])),
+                        TextButton(
+                            onPressed: () async {
+                              try {
+                                await ref
+                                    .read(adminRepoProvider)
+                                    .suspend(u.id);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(
+                                          context)
+                                      .showSnackBar(
+                                          const SnackBar(
+                                              content: Text(
+                                                  'Account status toggled (audited).')));
+                                  setState(() {});
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(
+                                          context)
+                                      .showSnackBar(SnackBar(
+                                          content:
+                                              Text('$e')));
+                                }
+                              }
+                            },
+                            child: Text('Suspend')),
+                      ])),
+                    );
+                  },
                 );
               },
             ),
@@ -137,150 +188,330 @@ class _UsersState extends State<AdminUsersScreen> {
   }
 }
 
-class AdminVerifyScreen extends StatefulWidget {
+class AdminVerifyScreen extends ConsumerStatefulWidget {
   const AdminVerifyScreen({super.key});
   @override
-  State<AdminVerifyScreen> createState() => _VerifyState();
+  ConsumerState<AdminVerifyScreen> createState() => _VerifyState();
 }
 
-class _VerifyState extends State<AdminVerifyScreen> {
-  String? _done;
+class _VerifyState extends ConsumerState<AdminVerifyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const RcBackAppBar(
           title: 'Technician verification',
           fallback: AppRoutes.adminDashboard),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          RcCard(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text('K. Sterling — Class-III docs',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: RepairColors.headingOn(context))),
-                Text('Specialty: Surgical Electronics • 8 yrs',
-                    style: TextStyle(
-                        fontSize: 12, color: RepairColors.mutedOn(context))),
-                if (_done != null) ...[
-                  const SizedBox(height: 6),
-                  Text('Decision: $_done (recorded with actor + time)',
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: RepairColors.tealOn(context))),
-                ],
-                const SizedBox(height: 10),
-                Row(children: [
-                  Expanded(
-                      child: RcButton(
-                          label: 'Approve',
-                          onPressed: () => setState(() =>
-                              _done = decideVerification('approve')))),
-                  const SizedBox(width: 8),
-                  Expanded(
-                      child: RcButton(
-                          label: 'Reject',
-                          destructive: true,
-                          onPressed: () => setState(() =>
-                              _done = decideVerification('reject')))),
-                ]),
-                const SizedBox(height: 8),
-                RcButton(
-                    label: 'Request correction',
-                    outline: true,
-                    onPressed: () => setState(
-                        () => _done = decideVerification('correct'))),
-              ])),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: ref.watch(adminRepoProvider).verificationQueue(),
+        builder: (ctx, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(
+                child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            return AsyncStateView(
+                loading: false,
+                failure: snap.error,
+                onRetry: () => setState(() {}),
+                onLogin: () async {
+                  await ref
+                      .read(authProvider.notifier)
+                      .expire();
+                  if (context.mounted) {
+                    context.go(AppRoutes.login);
+                  }
+                },
+                child: const SizedBox());
+          }
+          final items = snap.data ?? [];
+          if (items.isEmpty) {
+            return const AsyncStateView(
+                loading: false,
+                empty: true,
+                emptyText: 'Verification queue is clear.',
+                child: SizedBox());
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: items.length,
+            itemBuilder: (_, i) {
+              final p = items[i];
+              final user = p['user'];
+              final spec = p['specialty'];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: RcCard(
+                    child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                      Text(
+                          '${user is Map ? user['name'] ?? 'Technician' : 'Technician'} — ${spec is Map ? spec['name'] ?? '' : ''}',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: RepairColors.headingOn(
+                                  context))),
+                      Text(
+                          'Exp: ${p['experience_years'] ?? '?'} yrs • ${p['bio'] ?? ''}',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: RepairColors.mutedOn(
+                                  context))),
+                      const SizedBox(height: 10),
+                      Row(children: [
+                        Expanded(
+                            child: RcButton(
+                                label: 'Approve',
+                                onPressed: () =>
+                                    _decide('${p['id']}', 'approve'))),
+                        const SizedBox(width: 8),
+                        Expanded(
+                            child: RcButton(
+                                label: 'Reject',
+                                destructive: true,
+                                onPressed: () =>
+                                    _decide('${p['id']}', 'reject'))),
+                      ]),
+                      const SizedBox(height: 8),
+                      RcButton(
+                          label: 'Request correction',
+                          outline: true,
+                          onPressed: () => _decide(
+                              '${p['id']}',
+                              'resubmit',
+                              needsReason: true)),
+                    ])),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _decide(String id, String action,
+      {bool needsReason = false}) async {
+    String? reason;
+    if (action != 'approve' || needsReason) {
+      reason = await _askReason(action);
+      if (reason == null) return;
+    }
+    try {
+      await ref
+          .read(adminRepoProvider)
+          .verify(id, action, reason: reason);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content:
+              Text('${decideVerification(action)} recorded (audited).')));
+      setState(() {});
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
+  }
+
+  Future<String?> _askReason(String action) async {
+    final c = TextEditingController();
+    final f = GlobalKey<FormState>();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(action == 'approve'
+            ? 'Approve'
+            : 'Reason required'),
+        content: Form(
+          key: f,
+          child: TextFormField(
+              controller: c,
+              maxLines: 2,
+              autofocus: true,
+              decoration: const InputDecoration(
+                  hintText: 'Reason (min 5 chars)'),
+              validator: (v) =>
+                  (v == null || v.trim().length < 5)
+                      ? 'Reason required (min 5)'
+                      : null),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Back')),
+          ElevatedButton(
+              onPressed: () {
+                if (!f.currentState!.validate()) return;
+                Navigator.pop(ctx, c.text.trim());
+              },
+              child: Text('Confirm')),
         ],
       ),
     );
   }
 }
 
-class AdminServicesScreen extends StatefulWidget {
+class AdminServicesScreen extends ConsumerStatefulWidget {
   const AdminServicesScreen({super.key});
   @override
-  State<AdminServicesScreen> createState() => _SvcState();
+  ConsumerState<AdminServicesScreen> createState() => _SvcState();
 }
 
-class _SvcState extends State<AdminServicesScreen> {
-  final Map<String, bool> _active = {'s1': true, 's2': true, 'c3': false};
+class _SvcState extends ConsumerState<AdminServicesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const RcBackAppBar(
           title: 'Service management',
           fallback: AppRoutes.adminDashboard),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          for (final e in _active.entries)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: RcCard(
-                  child: Row(children: [
-                Expanded(
-                    child: Text(e.key,
-                        style: TextStyle(color: RepairColors.headingOn(context)))),
-                Switch(
-                    value: e.value,
-                    onChanged: (v) =>
-                        setState(() => _active[e.key] = v)),
-              ])),
-            ),
-          Text(
-              'Active/inactive + pricing changes apply server-side.',
-              style:
-                  TextStyle(fontSize: 12, color: RepairColors.mutedOn(context))),
-        ],
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future:
+            ref.watch(adminRepoProvider).specialties(),
+        builder: (ctx, snap) {
+          if (snap.connectionState ==
+              ConnectionState.waiting) {
+            return const Center(
+                child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            return AsyncStateView(
+                loading: false,
+                failure: snap.error,
+                onRetry: () => setState(() {}),
+                onLogin: () async {
+                  await ref
+                      .read(authProvider.notifier)
+                      .expire();
+                  if (context.mounted) {
+                    context.go(AppRoutes.login);
+                  }
+                },
+                child: const SizedBox());
+          }
+          final items = snap.data ?? [];
+          if (items.isEmpty) {
+            return const AsyncStateView(
+                loading: false,
+                empty: true,
+                emptyText: 'No specialties yet.',
+                child: SizedBox());
+          }
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              for (final e in items)
+                Padding(
+                  padding:
+                      const EdgeInsets.only(bottom: 8),
+                  child: RcCard(
+                      child: Row(children: [
+                    Expanded(
+                        child: Text('${e['name']}',
+                            style: TextStyle(
+                                color: RepairColors.headingOn(
+                                    context)))),
+                    Switch(
+                        value: e['status'] != 'inactive',
+                        onChanged: (v) async {
+                          try {
+                            await ref
+                                .read(adminRepoProvider)
+                                .setSpecialtyActive(
+                                    '${e['id']}', v);
+                            setState(() {});
+                          } catch (err) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(SnackBar(
+                                      content:
+                                          Text('$err')));
+                            }
+                          }
+                        }),
+                  ])),
+                ),
+              Text(
+                  'Active/inactive applies server-side immediately.',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: RepairColors.mutedOn(context))),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
-class AdminJobsScreen extends StatelessWidget {
+class AdminJobsScreen extends ConsumerWidget {
   const AdminJobsScreen({super.key});
   @override
-  Widget build(BuildContext context) {
-    const jobs = [
-      ('b-101', 'IPC-9028-T', 'IN_PROGRESS', 'K. Sterling', 'PENDING'),
-      ('b-102', 'WSH-114', 'SCHEDULED', 'A. Vance', 'SUCCEEDED'),
-    ];
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: const RcBackAppBar(
           title: 'Job inspection',
           fallback: AppRoutes.adminDashboard),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: jobs.length,
-        itemBuilder: (_, i) {
-          final j = jobs[i];
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: RcCard(
-              onTap: () =>
-                  context.go('${AppRoutes.bookingDetail}/${j.$1}'),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('${j.$2} • ${j.$3}',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: RepairColors.headingOn(context))),
-                  Text('Tech: ${j.$4} • Pay: ${j.$5}',
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: RepairColors.mutedOn(context))),
-                ],
-              ),
-            ),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: ref.watch(adminRepoProvider).jobs(),
+        builder: (ctx, snap) {
+          if (snap.connectionState ==
+              ConnectionState.waiting) {
+            return const Center(
+                child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            return AsyncStateView(
+                loading: false,
+                failure: snap.error,
+                child: const SizedBox());
+          }
+          final items = snap.data ?? [];
+          if (items.isEmpty) {
+            return const AsyncStateView(
+                loading: false,
+                empty: true,
+                emptyText: 'No jobs yet.',
+                child: SizedBox());
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: items.length,
+            itemBuilder: (_, i) {
+              final j = items[i];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: RcCard(
+                  onTap: () => context.go(
+                      '${AppRoutes.bookingDetail}/${j['id']}'),
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Text('Job ${j['id']} • ${j['status']}',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: RepairColors.headingOn(
+                                  context))),
+                      Text(
+                          'Customer: ${_nested(j['customer'], 'name')} • Tech: ${_nested(j['technician'], 'name')}',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: RepairColors.mutedOn(
+                                  context))),
+                    ],
+                  ),
+                ),
+              );
+            },
           );
         },
       ),
     );
+  }
+
+  String _nested(Object? v, String key) {
+    if (v is Map && v[key] != null) return '${v[key]}';
+    return '—';
   }
 }
 
@@ -296,66 +527,106 @@ class _PayState
   String? _msg;
   @override
   Widget build(BuildContext context) {
-    const txs = [
-      ('tx-1', 'b-101', '\$299', 'PENDING'),
-      ('tx-2', 'b-102', '\$89', 'SUCCEEDED'),
-      ('tx-3', 'b-100', '\$149', 'FAILED'),
-    ];
     return Scaffold(
       appBar: const RcBackAppBar(
           title: 'Payment management',
           fallback: AppRoutes.adminDashboard),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          if (_msg != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: RcCard(child: Text(_msg!,
-                  style: TextStyle(
-                      fontSize: 12, color: RepairColors.headingOn(context))))),
-          for (final t in txs)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: RcCard(
-                  child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                      children: [
-                    Row(children: [
-                      Expanded(
-                          child: Text('${t.$1} → ${t.$2}',
-                              style: TextStyle(
-                                  color: RepairColors.headingOn(context)))),
-                      Text('${t.$3} • ${t.$4}',
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: ref.watch(adminRepoProvider).payments(),
+        builder: (ctx, snap) {
+          if (snap.connectionState ==
+              ConnectionState.waiting) {
+            return const Center(
+                child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            return AsyncStateView(
+                loading: false,
+                failure: snap.error,
+                onRetry: () => setState(() {}),
+                onLogin: () async {
+                  await ref
+                      .read(authProvider.notifier)
+                      .expire();
+                  if (context.mounted) {
+                    context.go(AppRoutes.login);
+                  }
+                },
+                child: const SizedBox());
+          }
+          final txs = snap.data ?? [];
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              if (_msg != null)
+                Padding(
+                  padding:
+                      const EdgeInsets.only(bottom: 8),
+                  child: RcCard(
+                      child: Text(_msg!,
                           style: TextStyle(
                               fontSize: 12,
-                              color: RepairColors.mutedOn(context))),
-                    ]),
-                    if (t.$4 == 'SUCCEEDED')
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                            onPressed: () =>
-                                _refund(t.$1),
-                            child: Text('Refund…',
-                                style: TextStyle(
-                                    fontSize: 11))),
-                      ),
-                    if (t.$4 == 'FAILED')
-                      Text(
-                          'Failed — customer can retry from booking.',
-                          style: TextStyle(
-                              fontSize: 11,
-                              color: RepairColors.copper)),
-                  ])),
-            ),
-          Text(
-              'Refunds validated (SUCCEEDED + reason) and audited server-side.',
-              style: TextStyle(
-                  fontSize: 11,
-                  color: RepairColors.faintOn(context))),
-        ],
+                              color: RepairColors.headingOn(
+                                  context)))),
+                ),
+              if (txs.isEmpty)
+                Text('No transactions yet.',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: RepairColors.mutedOn(context))),
+              for (final t in txs)
+                Padding(
+                  padding:
+                      const EdgeInsets.only(bottom: 8),
+                  child: RcCard(
+                      child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                        Row(children: [
+                          Expanded(
+                              child: Text(
+                                  'tx ${t['id']} → booking ${t['job_id']}',
+                                  style: TextStyle(
+                                      color: RepairColors
+                                          .headingOn(
+                                              context)))),
+                          Text(
+                              '${t['amount']} • ${t['status']}',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: RepairColors.mutedOn(
+                                      context))),
+                        ]),
+                        if ('${t['status']}' ==
+                            'successful')
+                          Align(
+                            alignment:
+                                Alignment.centerRight,
+                            child: TextButton(
+                                onPressed: () =>
+                                    _refund('${t['id']}'),
+                                child: Text('Refund…',
+                                    style: TextStyle(
+                                        fontSize: 11))),
+                          ),
+                        if ('${t['status']}' == 'failed')
+                          Text(
+                              'Failed — customer can retry from booking.',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color:
+                                      RepairColors.copper)),
+                      ])),
+                ),
+              Text(
+                  'Refunds validated (SUCCEEDED + reason) and audited server-side.',
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: RepairColors.faintOn(context))),
+            ],
+          );
+        },
       ),
     );
   }
@@ -376,7 +647,8 @@ class _PayState
               decoration: const InputDecoration(
                   hintText: 'Reason (min 5 chars)'),
               validator: (v) =>
-                  PaymentMachine.validateRefund('SUCCEEDED', v)),
+                  PaymentMachine.validateRefund(
+                      'successful', v)),
         ),
         actions: [
           TextButton(
@@ -393,79 +665,225 @@ class _PayState
     );
     if (reason == null) return;
     try {
-      final s = await ref
-          .read(paymentsRepoProvider)
-          .refund(txId, reason);
-      if (mounted) setState(() => _msg = '$txId → $s (audited).');
+      // Refund goes through the payments repository so the ledger
+      // reversal and audit happen server-side.
+      await ref.read(paymentsRepoProvider).refund(txId, reason);
+      if (mounted) {
+        setState(() => _msg = '$txId refund submitted (audited).');
+      }
     } catch (e) {
       if (mounted) setState(() => _msg = 'Refund failed: $e');
     }
   }
 }
 
-class AdminComplaintsScreen extends StatefulWidget {
+class AdminComplaintsScreen extends ConsumerStatefulWidget {
   const AdminComplaintsScreen({super.key});
   @override
-  State<AdminComplaintsScreen> createState() => _CompState();
+  ConsumerState<AdminComplaintsScreen> createState() =>
+      _CompState();
 }
 
-class _CompState extends State<AdminComplaintsScreen> {
-  bool _resolved = false;
+class _CompState extends ConsumerState<AdminComplaintsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const RcBackAppBar(
           title: 'Complaints & support',
           fallback: AppRoutes.adminDashboard),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          RcCard(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text('CMP-07 • Late arrival dispute',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: RepairColors.headingOn(context))),
-                Text(_resolved ? 'Status: RESOLVED' : 'Status: OPEN',
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: RepairColors.tealOn(context))),
-                const SizedBox(height: 8),
-                RcButton(
-                    label: _resolved ? 'Reopen' : 'Resolve with note',
-                    onPressed: () =>
-                        setState(() => _resolved = !_resolved)),
-              ])),
-        ],
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: ref.watch(adminRepoProvider).complaints(),
+        builder: (ctx, snap) {
+          if (snap.connectionState ==
+              ConnectionState.waiting) {
+            return const Center(
+                child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            return AsyncStateView(
+                loading: false,
+                failure: snap.error,
+                onRetry: () => setState(() {}),
+                onLogin: () async {
+                  await ref
+                      .read(authProvider.notifier)
+                      .expire();
+                  if (context.mounted) {
+                    context.go(AppRoutes.login);
+                  }
+                },
+                child: const SizedBox());
+          }
+          final items = snap.data ?? [];
+          if (items.isEmpty) {
+            return const AsyncStateView(
+                loading: false,
+                empty: true,
+                emptyText: 'No complaints filed.',
+                child: SizedBox());
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: items.length,
+            itemBuilder: (_, i) {
+              final c = items[i];
+              final resolved = '${c['status']}' == 'resolved';
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: RcCard(
+                    child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                      Text('${c['body'] ?? ''}',
+                          style: TextStyle(
+                              color: RepairColors.headingOn(
+                                  context))),
+                      Text(
+                          'Status: ${c['status']}',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: RepairColors.tealOn(
+                                  context))),
+                      if (!resolved) ...[
+                        const SizedBox(height: 8),
+                        RcButton(
+                            label: 'Resolve with note',
+                            outline: true,
+                            onPressed: () =>
+                                _resolve('${c['id']}')),
+                      ],
+                    ])),
+              );
+            },
+          );
+        },
       ),
     );
   }
+
+  Future<void> _resolve(String id) async {
+    final c = TextEditingController();
+    final f = GlobalKey<FormState>();
+    final note = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Resolve complaint'),
+        content: Form(
+          key: f,
+          child: TextFormField(
+              controller: c,
+              maxLines: 2,
+              autofocus: true,
+              decoration: const InputDecoration(
+                  hintText: 'Resolution (min 5 chars)'),
+              validator: (v) =>
+                  (v == null || v.trim().length < 5)
+                      ? 'Resolution required (min 5)'
+                      : null),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Back')),
+          ElevatedButton(
+              onPressed: () {
+                if (!f.currentState!.validate()) return;
+                Navigator.pop(ctx, c.text.trim());
+              },
+              child: Text('Resolve')),
+        ],
+      ),
+    );
+    if (note == null) return;
+    try {
+      await ref.read(adminRepoProvider).resolveComplaint(id, note);
+      if (!mounted) return;
+      setState(() {});
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Complaint resolved (audited).')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
+  }
 }
 
-class AdminAuditScreen extends StatelessWidget {
+class AdminAuditScreen extends ConsumerWidget {
   const AdminAuditScreen({super.key});
   @override
-  Widget build(BuildContext context) {
-    const logs = [
-      ('a1', 'admin u-a1 APPROVED tech u-t1 • 10:02'),
-      ('a2', 'admin u-a1 SUSPENDED user u-t2 • 09:41'),
-      ('a3', 'system PAYMENT verified tx-2 • 09:12'),
-    ];
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: const RcBackAppBar(
-          title: 'Audit logs', fallback: AppRoutes.adminDashboard),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: logs.length,
-        itemBuilder: (_, i) => Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: RcCard(
-              child: Text(logs[i].$2,
-                  style: TextStyle(
-                      fontSize: 12, color: RepairColors.headingOn(context)))),
-        ),
+          title: 'Audit logs',
+          fallback: AppRoutes.adminDashboard),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: ref.watch(adminRepoProvider).audit(),
+        builder: (ctx, snap) {
+          if (snap.connectionState ==
+              ConnectionState.waiting) {
+            return const Center(
+                child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            return AsyncStateView(
+                loading: false,
+                failure: snap.error,
+                onRetry: () =>
+                    (context as Element).markNeedsBuild(),
+                onLogin: () async {
+                  await ref
+                      .read(authProvider.notifier)
+                      .expire();
+                  if (context.mounted) {
+                    context.go(AppRoutes.login);
+                  }
+                },
+                child: const SizedBox());
+          }
+          final logs = snap.data ?? [];
+          if (logs.isEmpty) {
+            return const AsyncStateView(
+                loading: false,
+                empty: true,
+                emptyText: 'No admin actions recorded yet.',
+                child: SizedBox());
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: logs.length,
+            itemBuilder: (_, i) {
+              final l = logs[i];
+              final actor = l['actor'];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: RcCard(
+                    child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                      Text('${l['action']}',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                              color: RepairColors.headingOn(
+                                  context))),
+                      Text(
+                          'by ${actor is Map ? actor['name'] ?? '?' : '?'} • ${l['created_at'] ?? ''}',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: RepairColors.mutedOn(
+                                  context))),
+                    ])),
+              );
+            },
+          );
+        },
       ),
     );
   }

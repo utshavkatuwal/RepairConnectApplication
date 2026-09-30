@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:repairconnect/core/constants/app_constants.dart';
 import 'package:repairconnect/core/errors/failures.dart';
 import 'package:repairconnect/features/reviews/data/reviews_repo.dart';
+import 'helpers/fakes.dart';
 
 void main() {
   test('rating and comment validation', () {
