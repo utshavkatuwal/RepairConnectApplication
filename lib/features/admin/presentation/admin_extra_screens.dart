@@ -481,7 +481,7 @@ class AdminJobsScreen extends ConsumerWidget {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: RcCard(
-                  onTap: () => context.go(
+                  onTap: () => context.push(
                       '${AppRoutes.bookingDetail}/${j['id']}'),
                   child: Column(
                     crossAxisAlignment:

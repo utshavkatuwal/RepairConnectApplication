@@ -52,7 +52,9 @@ class ApiReviewsRepository implements ReviewsRepository {
       String? comment}) async {
     try {
       final r = await api.dio.post(ApiRoutes.reviews, data: {
-        'booking_id': bookingId,
+        // Backend ReviewStoreRequest keys on job_id (reviews attach to
+        // jobs, not service requests).
+        'job_id': bookingId,
         'rating': rating,
         if (comment != null) 'comment': comment,
       });

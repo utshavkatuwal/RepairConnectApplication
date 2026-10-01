@@ -48,6 +48,11 @@ class Job extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function bills(): HasMany
+    {
+        return $this->hasMany(Bill::class);
+    }
+
     public function conversation(): HasOne
     {
         return $this->hasOne(Conversation::class);

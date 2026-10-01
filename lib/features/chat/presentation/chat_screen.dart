@@ -181,8 +181,14 @@ class _ChatState extends ConsumerState<ChatScreen> {
       body: Column(
         children: [
           InkWell(
-            onTap: () =>
-                context.go('${AppRoutes.bookingDetail}/$_bookingId'),
+            onTap: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context
+                    .go('${AppRoutes.bookingDetail}/$_bookingId');
+              }
+            },
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(

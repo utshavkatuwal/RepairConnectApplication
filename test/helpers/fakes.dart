@@ -59,6 +59,34 @@ class FakeCatalogRepository extends CatalogRepository {
   Future<List<ServiceRequest>> openRequests() async => [];
 }
 
+class FakeBookingsRepository extends BookingsRepository {
+  FakeBookingsRepository() : super(_testDio());
+
+  Booking? nextBooking;
+
+  @override
+  Future<Booking> booking(String id) async =>
+      nextBooking ??
+      Booking(
+        id: id,
+        requestId: 'r-$id',
+        customerId: 'c1',
+        technicianId: 't1',
+        status: JobStatus.accepted,
+        price: 1000,
+        paymentStatus: 'PENDING',
+        title: 'Fake job $id',
+        address: '1 Fake Street',
+        latitude: 27.7172,
+        longitude: 85.3240,
+        customerName: 'Fake Customer',
+        technicianName: 'Fake Tech',
+      );
+
+  @override
+  Future<List<Booking>> myBookings() async => [await booking('1')];
+}
+
 class FakeLocationService implements LocationService {
   @override
   Future<bool> ensurePermission() async => true;

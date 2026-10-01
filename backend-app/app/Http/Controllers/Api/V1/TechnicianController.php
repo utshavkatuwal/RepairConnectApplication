@@ -188,6 +188,11 @@ class TechnicianController extends Controller
             return [
                 'id' => $r->id,
                 'title' => $r->title,
+                'description' => $r->description,
+                'address' => $r->address,
+                'scheduled_at' => $r->scheduled_at,
+                'latitude' => $r->latitude,
+                'longitude' => $r->longitude,
                 'status' => $r->status,
                 'km' => round($geo->km((float) $r->latitude, (float) $r->longitude, (float) $profile->latitude, (float) $profile->longitude), 1),
             ];

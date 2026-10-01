@@ -128,7 +128,7 @@ class TechDashboardScreen extends ConsumerWidget {
                         const SizedBox(height: 10),
                         RcButton(
                             label: 'Open job',
-                            onPressed: () => context.go(
+                            onPressed: () => context.push(
                                 '${AppRoutes.bookingDetail}/${current.id}')),
                       ],
                     ),
@@ -296,6 +296,17 @@ class _RequestsState extends ConsumerState<TechRequestsScreen> {
   String? _busyId;
   String? _err;
 
+  /// Backend stores UTC; show the technician's local wall-clock time.
+  String _fmtLocal(String raw) {
+    final dt = DateTime.tryParse(raw);
+    if (dt == null) return raw;
+    final l = dt.toLocal();
+    return '${l.year}-${l.month.toString().padLeft(2, '0')}-'
+        '${l.day.toString().padLeft(2, '0')} '
+        '${l.hour.toString().padLeft(2, '0')}:'
+        '${l.minute.toString().padLeft(2, '0')}';
+  }
+
   Future<void> _accept(ServiceRequest r) async {
     setState(() {
       _busyId = r.id;
@@ -305,7 +316,7 @@ class _RequestsState extends ConsumerState<TechRequestsScreen> {
       final job =
           await ref.read(bookingsRepoProvider).acceptRequest(r.id);
       if (!mounted) return;
-      context.go('${AppRoutes.bookingDetail}/${job.id}');
+      context.push('${AppRoutes.bookingDetail}/${job.id}');
     } catch (e) {
       setState(() => _err = e.toString());
     } finally {
@@ -393,11 +404,18 @@ class _RequestsState extends ConsumerState<TechRequestsScreen> {
                                     color: RepairColors.headingOn(
                                         context))),
                             Text(
-                                '${r.description}${r.km == null ? '' : ' • ${r.km!.toStringAsFixed(1)} km'}',
+                                '${r.description}${r.km == null ? '' : ' ${r.km!.toStringAsFixed(1)} km'}',
                                 style: TextStyle(
                                     fontSize: 12,
                                     color: RepairColors.mutedOn(
                                         context))),
+                            if (r.preferredAt != null)
+                              Text(
+                                  'Scheduled: ${_fmtLocal(r.preferredAt!)}',
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      color: RepairColors.tealOn(
+                                          context))),
                             const SizedBox(height: 10),
                             if (_err != null && _busyId == null)
                               Padding(

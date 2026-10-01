@@ -211,7 +211,7 @@ class _HomeState extends ConsumerState<CustomerHomeScreen> {
                     );
                   }
                   return RcCard(
-                    onTap: () => context.go(
+                    onTap: () => context.push(
                         '${AppRoutes.bookingDetail}/${active.id}'),
                     child: Row(
                       children: [
@@ -834,7 +834,7 @@ class _CState extends ConsumerState<CreateRequestScreen> {
                                 : '${_addr.text.trim()} [${_pos!.label}]');
                     if (!context.mounted) return;
                     // `req-` until a technician accepts and mints the job.
-                    context.go(
+                    context.push(
                         '${AppRoutes.bookingDetail}/req-${req.id}');
                   } catch (e) {
                     setState(() => _err = e.toString());

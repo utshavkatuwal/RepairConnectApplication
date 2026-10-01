@@ -220,7 +220,9 @@ class BookingsRepository {
         // Customer-only endpoint: other roles are excluded by the
         // middleware, not by an error in this user's data.
       }
-      return [...requests, ...jobs];
+      // Real jobs first: an accepted/active job outranks a still-open
+      // request for the home screen's "active booking" slot.
+      return [...jobs, ...requests];
     } catch (e) {
       throw api.mapError(e);
     }

@@ -436,7 +436,7 @@ class HistoryScreen extends ConsumerWidget {
                 padding: const EdgeInsets.only(bottom: 10),
                 child: RcCard(
                   onTap: () => context
-                      .go('${AppRoutes.bookingDetail}/${b.id}'),
+                      .push('${AppRoutes.bookingDetail}/${b.id}'),
                   child: Row(
                     children: [
                       Expanded(

@@ -351,10 +351,10 @@ class _BState extends ConsumerState<BookingDetailScreen> {
                 label: 'Open chat',
                 outline: true,
                 onPressed: () =>
-                    context.go('${AppRoutes.chat}/conv-$_target')),
+                    context.push('${AppRoutes.chat}/conv-$_target')),
             const SizedBox(height: 12),
             PaymentPanel(
-                key: ValueKey(_target),
+                key: ValueKey('payment-$_target'),
                 bookingId: _target,
                 jobStatus: _status,
                 onState: (s) {
@@ -364,7 +364,7 @@ class _BState extends ConsumerState<BookingDetailScreen> {
                 }),
             const SizedBox(height: 12),
             ReviewPanel(
-                key: ValueKey(_target),
+                key: ValueKey('review-$_target'),
                 bookingId: _target,
                 bookingStatus: _status),
           ],
@@ -430,8 +430,16 @@ class _PState extends ConsumerState<PaymentPanel> {
       if (!mounted) return;
       setState(() {
         _bill = b;
-        if (b != null && _amount.text.trim().isEmpty) {
-          _amount.text = '${b['amount']}';
+        if (b != null) {
+          // Bill is only "paid" after the backend settles the payment,
+          // so mirror it into the panel state on (re)mount — otherwise
+          // a remounted panel would show PENDING next to a paid bill.
+          if ('${b['status']}' == 'paid') {
+            _state = 'successful';
+          }
+          if (_amount.text.trim().isEmpty) {
+            _amount.text = '${b['amount']}';
+          }
         }
       });
       widget.onState?.call(_billState());

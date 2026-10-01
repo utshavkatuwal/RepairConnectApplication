@@ -15,7 +15,9 @@ class JobResource extends JsonResource
             'customer_id' => $this->customer_id,
             'technician_id' => $this->technician_id,
             'status' => $this->status,
-            'price' => null,
+            // Issued bill amount is what the customer owes; 0 before
+            // the technician bills. Never null so clients can render.
+            'price' => $this->bills()->latest('id')->first()?->amount ?? 0,
             'payment_status' => $this->payments()->latest()->first()?->status ?? 'pending',
             'accepted_at' => $this->accepted_at,
             'started_at' => $this->started_at,
