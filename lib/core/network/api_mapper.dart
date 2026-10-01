@@ -60,6 +60,34 @@ String apiRole(String role) {
   }
 }
 
+/// Flutter SCREAMING status -> API snake_case status for outbound
+/// transitions (mirror of [normalizeStatus]). Backend enum:
+/// accepted -> technician_arriving -> in_progress -> completed.
+String apiStatus(String status) {
+  switch (status) {
+    case JobStatus.requested:
+      return 'requested';
+    case JobStatus.accepted:
+      return 'accepted';
+    case JobStatus.scheduled:
+      return 'scheduled';
+    case JobStatus.enRoute:
+      return 'technician_arriving';
+    case JobStatus.arrived:
+      return 'arrived';
+    case JobStatus.inProgress:
+      return 'in_progress';
+    case JobStatus.completed:
+      return 'completed';
+    case JobStatus.cancelled:
+      return 'cancelled';
+    case JobStatus.disputed:
+      return 'disputed';
+    default:
+      return status.trim().toLowerCase();
+  }
+}
+
 /// Backend ServiceRequest shape differs from the legacy fake shape:
 /// `{specialty_id,title,description,address,lat,lng,scheduled_at}`.
 /// Returns the POST body for a create-request call.

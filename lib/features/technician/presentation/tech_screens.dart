@@ -154,7 +154,7 @@ class TechDashboardScreen extends ConsumerWidget {
                         Text(
                             bal == null
                                 ? '…'
-                                : '\$${bal.toStringAsFixed(2)}',
+                                : 'NPR ${bal.toStringAsFixed(2)}',
                             style: TextStyle(
                                 fontSize: 26,
                                 fontWeight: FontWeight.w800,
@@ -191,9 +191,11 @@ class AvailabilityToggle extends ConsumerStatefulWidget {
 }
 
 class _AState extends ConsumerState<AvailabilityToggle> {
-  bool _on = true;
+  // Backend states: online (can accept) | busy (active job) | offline.
+  String _status = 'offline';
   bool _busy = false;
   bool _loading = true;
+  bool get _on => _status == 'online';
 
   @override
   void initState() {
@@ -205,7 +207,7 @@ class _AState extends ConsumerState<AvailabilityToggle> {
             .technicianProfile();
         if (mounted) {
           setState(() {
-            _on = p['availability_status'] != 'offline';
+            _status = '${p['availability_status'] ?? 'offline'}';
             _loading = false;
           });
         }
@@ -237,7 +239,12 @@ class _AState extends ConsumerState<AvailabilityToggle> {
                     style: TextStyle(
                         fontWeight: FontWeight.w700,
                         color: RepairColors.headingOn(context))),
-                Text(_on ? 'Online — can accept jobs' : 'Offline',
+                Text(
+                    switch (_status) {
+                      'online' => 'Online — can accept jobs',
+                      'busy' => 'Busy — finish your active job first',
+                      _ => 'Offline',
+                    },
                     style: TextStyle(
                         fontSize: 12,
                         color: RepairColors.mutedOn(context))),
@@ -261,7 +268,8 @@ class _AState extends ConsumerState<AvailabilityToggle> {
                           .read(technicianRepoProvider)
                           .setAvailability(
                               v ? 'online' : 'offline');
-                      setState(() => _on = v);
+                      setState(() =>
+                          _status = v ? 'online' : 'offline');
                     } catch (e) {
                       messenger.showSnackBar(SnackBar(
                           content: Text(e.toString())));

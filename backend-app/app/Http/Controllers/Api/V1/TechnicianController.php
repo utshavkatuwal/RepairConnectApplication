@@ -114,6 +114,17 @@ class TechnicianController extends Controller
     public function availability(Request $request)
     {
         $request->validate(['availability_status' => ['required', 'in:online,offline,busy']]);
+
+        // Going online requires admin-approved documents + profile photo.
+        if ($request->input('availability_status') === 'online') {
+            $profile = $request->user()->technicianProfile()->firstOrFail();
+            abort_unless(
+                $profile->isApproved(),
+                403,
+                'Verification must be approved by an admin before you can go online.'
+            );
+        }
+
         $request->user()->technicianProfile()->update([
             'availability_status' => $request->string('availability_status'),
         ]);
@@ -147,8 +158,8 @@ class TechnicianController extends Controller
             'service_radius' => $profile->service_radius,
             'availability_status' => $profile->availability_status,
             'verification_status' => $profile->verification_status,
-            'rating' => round((float) \App\Models\Review::where('technician_id', $techId)->avg('rating'), 2),
-            'jobs_completed' => \App\Models\Job::where('technician_id', $techId)->where('status', 'completed')->count(),
+            'rating' => round((float) Review::where('technician_id', $techId)->avg('rating'), 2),
+            'jobs_completed' => Job::where('technician_id', $techId)->where('status', 'completed')->count(),
             'documents' => $profile->documents()->latest()->get(['id', 'document_type', 'status', 'rejection_reason', 'created_at']),
         ]]);
     }

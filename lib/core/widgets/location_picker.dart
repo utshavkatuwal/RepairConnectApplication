@@ -4,12 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../services/location/location_service.dart';
 import '../../theme.dart';
+import 'rc_map.dart';
 import 'rc_widgets.dart';
 
-/// Reusable location selection (15): permission states, GPS fix, manual
-/// coordinates with validation, backend-resolved address. Map tiles come
-/// from MAP_TILE_URL (Carto) - no provider secrets in the app. The preview
-/// is an honest coordinate card, not a fabricated map.
+/// Location selection (15): permission states, GPS fix, interactive
+/// Carto map (tap to place marker), manual coordinates with validation,
+/// backend-resolved reverse-geocoded address.
 class LocationPicker extends ConsumerStatefulWidget {
   final void Function(LatLng? pos, String address)? onChanged;
   final String initialAddress;
@@ -34,6 +34,21 @@ class _PickerState extends ConsumerState<LocationPicker> {
     _addr.text = widget.initialAddress;
   }
 
+  Future<void> _reverse(double lat, double lng) async {
+    try {
+      final resolved =
+          await ref.read(locationServiceProvider).resolveAddress(lat, lng);
+      if (resolved != null && resolved.isNotEmpty && mounted) {
+        setState(() => _addr.text = resolved);
+        // Parent filled its address from the (still empty) sync callback;
+        // re-notify now that the backend actually resolved one.
+        widget.onChanged?.call(_pos, resolved);
+      }
+    } catch (_) {
+      // Reverse geocode is best-effort; coordinates remain authoritative.
+    }
+  }
+
   Future<void> _useGps() async {
     setState(() {
       _busy = true;
@@ -44,13 +59,13 @@ class _PickerState extends ConsumerState<LocationPicker> {
       final ok = await svc.ensurePermission();
       if (!ok) {
         setState(() => _permErr =
-            'Location permission denied. Enter coordinates manually.');
+            'Location permission denied. Tap the map or enter coordinates.');
         return;
       }
       final pos = await svc.currentPosition();
       if (pos == null) {
-        setState(() => _permErr =
-            'GPS unavailable. Enter coordinates manually.');
+        setState(() =>
+            _permErr = 'GPS unavailable. Tap the map or enter coordinates.');
         return;
       }
       setState(() {
@@ -58,23 +73,29 @@ class _PickerState extends ConsumerState<LocationPicker> {
         _lat.text = pos.lat.toStringAsFixed(5);
         _lng.text = pos.lng.toStringAsFixed(5);
       });
-      final resolved = await svc.resolveAddress(pos.lat, pos.lng);
-      if (resolved != null && resolved.isNotEmpty) {
-        setState(() => _addr.text = resolved);
-      }
+      await _reverse(pos.lat, pos.lng);
       widget.onChanged?.call(_pos, _addr.text.trim());
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
+  void _setPos(double la, double ln) {
+    if (la < -90 || la > 90 || ln < -180 || ln > 180) return;
+    setState(() {
+      _pos = LatLng(la, ln);
+      _lat.text = la.toStringAsFixed(5);
+      _lng.text = ln.toStringAsFixed(5);
+    });
+    _reverse(la, ln);
+    widget.onChanged?.call(_pos, _addr.text.trim());
+  }
+
   void _manual() {
     final la = double.tryParse(_lat.text.trim());
     final ln = double.tryParse(_lng.text.trim());
     if (la == null || ln == null) return;
-    if (la < -90 || la > 90 || ln < -180 || ln > 180) return;
-    setState(() => _pos = LatLng(la, ln));
-    widget.onChanged?.call(_pos, _addr.text.trim());
+    _setPos(la, ln);
   }
 
   @override
@@ -89,11 +110,19 @@ class _PickerState extends ConsumerState<LocationPicker> {
                   fontWeight: FontWeight.w800,
                   color: RepairColors.tealOn(context))),
           const SizedBox(height: 8),
+          RcMap(
+            centerLat: _pos?.lat,
+            centerLng: _pos?.lng,
+            markerLat: _pos?.lat,
+            markerLng: _pos?.lng,
+            onTap: (lat, lng) => _setPos(lat, lng),
+          ),
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
                 child: Text(_pos == null
-                    ? 'No coordinates set'
+                    ? 'Tap the map or use GPS to set coordinates'
                     : 'GPS: ${_pos!.label}'),
               ),
               TextButton.icon(
@@ -102,18 +131,16 @@ class _PickerState extends ConsumerState<LocationPicker> {
                     ? const SizedBox(
                         width: 14,
                         height: 14,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2))
+                        child: CircularProgressIndicator(strokeWidth: 2))
                     : Icon(Icons.my_location, size: 16),
-                label: Text('Use GPS',
-                    style: TextStyle(fontSize: 12)),
+                label: Text('Use GPS', style: TextStyle(fontSize: 12)),
               ),
             ],
           ),
           if (_permErr != null)
             Text(_permErr!,
-                style: TextStyle(
-                    fontSize: 11, color: RepairColors.copper)),
+                style:
+                    TextStyle(fontSize: 11, color: RepairColors.copper)),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -146,7 +173,7 @@ class _PickerState extends ConsumerState<LocationPicker> {
           ),
           const SizedBox(height: 4),
           Text(
-              'Map preview uses Carto tiles via MAP_TILE_URL. Coordinates sent with request; ranking stays server-side.',
+              'Carto map tiles (dark/light follow app theme). Coordinates are sent with the request; ranking stays server-side.',
               style: TextStyle(
                   fontSize: 10,
                   color: RepairColors.faintOn(context))),

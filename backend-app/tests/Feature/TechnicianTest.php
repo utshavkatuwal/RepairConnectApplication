@@ -61,15 +61,61 @@ class TechnicianTest extends TestCase
     public function test_admin_approves_and_tech_becomes_eligible(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'status' => 'active']);
-        $profile = TechnicianProfile::factory()->create();
+        $tech = User::factory()->create(['role' => 'technician', 'status' => 'active']);
+        $profile = TechnicianProfile::factory()->create(['user_id' => $tech->id]);
+        $this->submitRequiredDocuments($tech);
         $token = $admin->createToken('a')->plainTextToken;
 
-        $this->postJson(
-            "/api/v1/admin/verification/{$profile->id}/approve", [],
-            ['Authorization' => "Bearer $token"]
+        $this->authed(
+            'POST',
+            "/api/v1/admin/verification/{$profile->id}/approve",
+            $token
         )->assertOk();
 
         $this->assertEquals('approved', $profile->fresh()->verification_status);
+    }
+
+    public function test_approve_requires_profile_photo_and_credential_document(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'status' => 'active']);
+        $profile = TechnicianProfile::factory()->create();
+        $h = ['Authorization' => 'Bearer '.$admin->createToken('a')->plainTextToken];
+
+        $this->postJson("/api/v1/admin/verification/{$profile->id}/approve", [], $h)
+            ->assertStatus(422);
+
+        $profile->documents()->create([
+            'document_type' => 'government_id',
+            'file_path' => 'verification/x/id.pdf', 'original_filename' => 'id.pdf',
+            'mime_type' => 'application/pdf', 'file_size' => 100, 'status' => 'pending',
+        ]);
+        $this->postJson("/api/v1/admin/verification/{$profile->id}/approve", [], $h)
+            ->assertStatus(422);
+
+        $profile->documents()->create([
+            'document_type' => 'profile_photo',
+            'file_path' => 'verification/x/p.jpg', 'original_filename' => 'p.jpg',
+            'mime_type' => 'image/jpeg', 'file_size' => 100, 'status' => 'pending',
+        ]);
+        $this->postJson("/api/v1/admin/verification/{$profile->id}/approve", [], $h)
+            ->assertOk();
+    }
+
+    private function submitRequiredDocuments(User $tech): void
+    {
+        Storage::fake('private');
+        $token = $tech->createToken('t')->plainTextToken;
+        $h = ['Authorization' => "Bearer $token"];
+
+        $this->postJson('/api/v1/technician/documents', [
+            'document_type' => 'profile_photo',
+            'file' => UploadedFile::fake()->create('me.jpg', 20, 'image/jpeg'),
+        ], $h)->assertCreated();
+
+        $this->postJson('/api/v1/technician/documents', [
+            'document_type' => 'government_id',
+            'file' => UploadedFile::fake()->create('id.pdf', 20, 'application/pdf'),
+        ], $h)->assertCreated();
     }
 
     public function test_technician_cannot_self_approve(): void

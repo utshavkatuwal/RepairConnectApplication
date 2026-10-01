@@ -40,7 +40,10 @@ class User {
                     false) ==
                 true ||
             '${j['tech_verified'] ?? ''}' == '1',
-        techStatus: '${j['tech_status'] ?? j['verification_status'] ?? 'PENDING'}',
+        // Backend verification_status is lowercase ('approved'); the
+        // domain compares against 'APPROVED' (see [canAcceptJobs]).
+        techStatus: '${j['tech_status'] ?? j['verification_status'] ?? 'PENDING'}'
+            .toUpperCase(),
       );
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -169,6 +172,12 @@ class Booking {
   final double price;
   final String paymentStatus;
   final String? scheduledAt;
+  final String? title;
+  final String? address;
+  final double? latitude;
+  final double? longitude;
+  final String? customerName;
+  final String? technicianName;
   const Booking(
       {required this.id,
       required this.requestId,
@@ -177,7 +186,13 @@ class Booking {
       required this.status,
       required this.price,
       required this.paymentStatus,
-      this.scheduledAt});
+      this.scheduledAt,
+      this.title,
+      this.address,
+      this.latitude,
+      this.longitude,
+      this.customerName,
+      this.technicianName});
   factory Booking.fromJson(Map<String, dynamic> j) => Booking(
         id: '${j['id']}',
         requestId: '${j['request_id'] ?? j['service_request_id'] ?? ''}',
@@ -187,6 +202,12 @@ class Booking {
         price: double.tryParse('${j['price'] ?? 0}') ?? 0,
         paymentStatus: '${j['payment_status'] ?? 'PENDING'}',
         scheduledAt: j['scheduled_at']?.toString(),
+        title: j['title']?.toString(),
+        address: j['address']?.toString(),
+        latitude: j['latitude'] == null ? null : double.tryParse('${j['latitude']}'),
+        longitude: j['longitude'] == null ? null : double.tryParse('${j['longitude']}'),
+        customerName: j['customer_name']?.toString(),
+        technicianName: j['technician_name']?.toString(),
       );
 }
 

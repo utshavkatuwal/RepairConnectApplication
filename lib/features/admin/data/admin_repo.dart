@@ -119,6 +119,36 @@ class AdminRepository {
     }
   }
 
+  Future<List<Map<String, dynamic>>> withdrawals(
+      {String? status}) async {
+    try {
+      final r = await api.getRetry('/api/v1/admin/withdrawals',
+          query: {if (status != null) 'status': status.toLowerCase()});
+      final body = Map<String, dynamic>.from(r.data as Map);
+      final items = body['data'];
+      if (items is! List) return [];
+      return [
+        for (final e in items) Map<String, dynamic>.from(e as Map)
+      ];
+    } catch (e) {
+      throw api.mapError(e);
+    }
+  }
+
+  /// decision: processing (initiate payout) | paid | rejected.
+  Future<void> decideWithdrawal(
+      String id, String decision, {String? note}) async {
+    try {
+      await api.dio.post('/api/v1/admin/withdrawals/$id/decide',
+          data: {
+            'decision': decision,
+            if (note != null && note.isNotEmpty) 'note': note,
+          });
+    } on DioException catch (e) {
+      throw api.mapError(e);
+    }
+  }
+
   Future<List<Map<String, dynamic>>> audit() async {
     try {
       final r = await api.getRetry('/api/v1/admin/audit');

@@ -31,9 +31,12 @@ class JobStatus {
   /// Valid forward transitions. Cancellation allowed from pre-completion states.
   static const transitions = <String, List<String>>{
     requested: [accepted, cancelled],
-    accepted: [scheduled, cancelled],
+    // Mirrors backend App\Enums\JobStatus: accepted ->
+    // technician_arriving -> in_progress -> completed (no separate
+    // scheduled/arrived job states; those only exist as display aliases).
+    accepted: [enRoute, cancelled],
     scheduled: [enRoute, cancelled],
-    enRoute: [arrived, cancelled],
+    enRoute: [inProgress, cancelled],
     arrived: [inProgress, cancelled],
     inProgress: [completed, disputed],
     completed: [disputed],
@@ -109,6 +112,7 @@ class AppRoutes {
   static const adminServices = '/admin/services';
   static const adminJobs = '/admin/jobs';
   static const adminPayments = '/admin/payments';
+  static const adminWithdrawals = '/admin/withdrawals';
   static const adminComplaints = '/admin/complaints';
   static const adminAudit = '/admin/audit';
   static const designSystem = '/design-system';

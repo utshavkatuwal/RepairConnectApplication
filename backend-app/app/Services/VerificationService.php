@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Events\TechnicianVerified;
+use App\Models\AuditLog;
 use App\Models\TechnicianProfile;
 use App\Models\User;
 use App\Models\VerificationDocument;
@@ -15,6 +16,7 @@ class VerificationService
         'professional_certificate',
         'license',
         'experience_proof',
+        'profile_photo',
         'other',
     ];
 
@@ -47,6 +49,21 @@ class VerificationService
 
     public function approve(User $admin, TechnicianProfile $profile): TechnicianProfile
     {
+        // Approval requires the submitted profile photo AND at least one
+        // credential document — availability stays gated until this passes.
+        abort_unless(
+            $profile->documents()->where('document_type', 'profile_photo')->exists(),
+            422,
+            'Profile photo must be uploaded before approval.'
+        );
+        abort_unless(
+            $profile->documents()
+                ->where('document_type', '!=', 'profile_photo')
+                ->exists(),
+            422,
+            'At least one credential document must be uploaded before approval.'
+        );
+
         return DB::transaction(function () use ($admin, $profile) {
             $profile->update([
                 'verification_status' => 'approved',
@@ -59,7 +76,7 @@ class VerificationService
                 'reviewed_at' => now(),
             ]);
             event(new TechnicianVerified($profile, true, null));
-            \App\Models\AuditLog::record($admin, 'technician.approved', TechnicianProfile::class, $profile->id);
+            AuditLog::record($admin, 'technician.approved', TechnicianProfile::class, $profile->id);
 
             return $profile->fresh();
         });
@@ -79,7 +96,7 @@ class VerificationService
                 'rejection_reason' => $reason,
             ]);
             event(new TechnicianVerified($profile, false, $reason));
-            \App\Models\AuditLog::record($admin, 'technician.rejected', TechnicianProfile::class, $profile->id, ['reason' => $reason]);
+            AuditLog::record($admin, 'technician.rejected', TechnicianProfile::class, $profile->id, ['reason' => $reason]);
 
             return $profile->fresh();
         });
@@ -92,7 +109,7 @@ class VerificationService
             'rejected_reason' => $reason,
         ]);
         event(new TechnicianVerified($profile, false, $reason));
-        \App\Models\AuditLog::record($admin, 'technician.resubmission_required', TechnicianProfile::class, $profile->id, ['reason' => $reason]);
+        AuditLog::record($admin, 'technician.resubmission_required', TechnicianProfile::class, $profile->id, ['reason' => $reason]);
 
         return $profile->fresh();
     }

@@ -1,15 +1,14 @@
-import 'package:flutter_test/flutter_test.dart';
+﻿import 'package:flutter_test/flutter_test.dart';
 import 'package:repairconnect/core/auth/role_guards.dart';
 import 'package:repairconnect/core/constants/app_constants.dart';
 import 'package:repairconnect/core/utils/validators.dart';
 import 'helpers/fakes.dart';
 import 'package:repairconnect/features/bookings/domain/job_machine.dart';
-import 'package:repairconnect/features/payments/domain/payment_machine.dart';
 import 'package:repairconnect/features/reviews/data/reviews_repo.dart';
 import 'package:repairconnect/services/notifications/push_service.dart';
 import 'package:repairconnect/shared/models/models.dart';
 
-/// Cross-module flows with fake backends (§27 integration level):
+/// Cross-module flows with fake backends (Â§27 integration level):
 /// customer booking, technician job, payment verification, review gating.
 void main() {
   test('customer booking flow: request to completed to review', () {
@@ -26,10 +25,10 @@ void main() {
             role: AppRoles.technician, from: s, to: JobStatus.accepted),
         true);
     s = JobStatus.accepted;
+    // Backend real chain: accepted -> technician_arriving -> in_progress
+    // -> completed (no scheduled/arrived job states).
     for (final next in [
-      JobStatus.scheduled,
       JobStatus.enRoute,
-      JobStatus.arrived,
       JobStatus.inProgress,
       JobStatus.completed,
     ]) {
@@ -40,6 +39,13 @@ void main() {
           reason: '$s -> $next');
       s = next;
     }
+    expect(
+        JobMachine.canActor(
+            role: AppRoles.technician,
+            from: JobStatus.accepted,
+            to: JobStatus.scheduled),
+        false,
+        reason: 'scheduled hop does not exist on the backend');
     // 3. Review unlocks only now, for participants.
     expect(
         ReviewRules.validateEligibility(
@@ -74,12 +80,13 @@ void main() {
         NotificationCenter(FakeNotificationsRepository());
     final tx = await pay.startPayment(
         bookingId: 'b1',
+        provider: 'sandbox',
         amount: 299,
         idempotencyKey: newIdempotencyKey());
-    expect(tx['status'], PaymentMachine.pending);
+    expect(tx['status'], 'initiated');
     // Client must re-query server state, never assume success.
     final verified = await pay.status('${tx['id']}');
-    expect(verified, PaymentMachine.pending);
+    expect(verified, 'initiated');
     center.record(
         type: NotificationTypes.payment,
         title: 'Payment $verified',

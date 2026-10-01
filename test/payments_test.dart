@@ -32,20 +32,41 @@ void main() {
   test('idempotency: same key returns same tx', () async {
     final repo = FakePaymentsRepository();
     final a = await repo.startPayment(
-        bookingId: 'b1', amount: 100, idempotencyKey: 'k1');
+        bookingId: 'b1', provider: 'sandbox', amount: 100, idempotencyKey: 'k1');
     final b = await repo.startPayment(
-        bookingId: 'b1', amount: 100, idempotencyKey: 'k1');
+        bookingId: 'b1', provider: 'sandbox', amount: 100, idempotencyKey: 'k1');
     expect(a['id'], b['id']);
     final c = await repo.startPayment(
-        bookingId: 'b1', amount: 100, idempotencyKey: 'k2');
+        bookingId: 'b1', provider: 'sandbox', amount: 100, idempotencyKey: 'k2');
     expect(c['id'] != a['id'], true);
   });
 
   test('fake repo exposes transactions + invoice', () async {
     final repo = FakePaymentsRepository();
     await repo.startPayment(
-        bookingId: 'b9', amount: 50, idempotencyKey: 'inv-k');
+        bookingId: 'b9', provider: 'sandbox', amount: 50, idempotencyKey: 'inv-k');
     expect((await repo.transactions('b9')).isNotEmpty, true);
     expect((await repo.invoice('b9'))?.bookingId, 'b9');
+  });
+
+  test('bill lifecycle: none, create, issued amount kept', () async {
+    final repo = FakePaymentsRepository();
+    expect(await repo.bill('b7'), isNull);
+    final bill = await repo.createBill(
+        bookingId: 'b7', amount: 1500, notes: 'Parts + labour');
+    expect(bill['status'], 'issued');
+    expect(bill['amount'], 1500);
+    expect((await repo.bill('b7'))?['status'], 'issued');
+  });
+
+  test('sandbox confirm flips server state', () async {
+    final repo = FakePaymentsRepository();
+    final tx = await repo.startPayment(
+        bookingId: 'b8',
+        provider: 'sandbox',
+        amount: 100,
+        idempotencyKey: 'cf-1');
+    await repo.confirm('${tx['id']}');
+    expect(await repo.status('${tx['id']}'), 'successful');
   });
 }

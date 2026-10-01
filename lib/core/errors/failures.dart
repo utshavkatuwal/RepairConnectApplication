@@ -4,6 +4,11 @@ sealed class Failure {
   final String message;
   final String? code;
   const Failure(this.message, {this.code});
+
+  /// UI shows `e.toString()` in many SnackBars/labels; print the real
+  /// message instead of "Instance of 'NetworkFailure'".
+  @override
+  String toString() => message;
 }
 
 class NetworkFailure extends Failure {

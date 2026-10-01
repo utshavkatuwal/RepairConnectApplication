@@ -76,6 +76,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: AppRoutes.adminServices, builder: (_, __) => const AdminServicesScreen()),
       GoRoute(path: AppRoutes.adminJobs, builder: (_, __) => const AdminJobsScreen()),
       GoRoute(path: AppRoutes.adminPayments, builder: (_, __) => const AdminPaymentsScreen()),
+      GoRoute(path: AppRoutes.adminWithdrawals, builder: (_, __) => const AdminWithdrawalsScreen()),
       GoRoute(path: AppRoutes.adminComplaints, builder: (_, __) => const AdminComplaintsScreen()),
       GoRoute(path: AppRoutes.adminAudit, builder: (_, __) => const AdminAuditScreen()),
       GoRoute(path: AppRoutes.profile, builder: (_, __) => const ProfileScreen()),

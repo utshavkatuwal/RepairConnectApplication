@@ -32,6 +32,41 @@ class JobTest extends TestCase
         $this->assertContains($r->json('data.status'), ['requested', 'searching']);
     }
 
+    public function test_service_request_resource_links_job_and_schedule(): void
+    {
+        [$customer, $token] = $this->customer();
+        $specialty = Specialty::factory()->create();
+
+        $id = $this->authed('POST', '/api/v1/service-requests', $token, [
+            'specialty_id' => $specialty->id,
+            'title' => 'Scheduled tap fix',
+            'description' => 'Kitchen tap leaks badly, needs repair.',
+            'address' => 'Lakeside',
+            'latitude' => 28.2,
+            'longitude' => 83.9,
+            'scheduled_at' => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->json('data.id');
+
+        // Open request: schedule visible, no job to navigate to yet.
+        $before = $this->authed('GET', "/api/v1/service-requests/{$id}", $token)->assertOk();
+        $this->assertNotNull($before->json('data.scheduled_at'));
+        $this->assertArrayHasKey('job_id', $before->json('data'));
+        $this->assertNull($before->json('data.job_id'));
+
+        // Same contract in the list (the app resolves req-{id} from it).
+        $index = $this->authed('GET', '/api/v1/service-requests', $token)->assertOk()->json('data');
+        $this->assertArrayHasKey('job_id', $index[0]);
+        $this->assertNull($index[0]['job_id']);
+
+        $tech = $this->approvedTech($specialty);
+        $jobId = $this->authed('POST', "/api/v1/jobs/{$id}/accept", $tech->createToken('t')->plainTextToken)
+            ->assertOk()->json('data.id');
+
+        // After acceptance the request points at the real job id.
+        $after = $this->authed('GET', "/api/v1/service-requests/{$id}", $token)->assertOk();
+        $after->assertJsonPath('data.job_id', $jobId);
+    }
+
     public function test_approved_tech_accepts_and_second_is_rejected(): void
     {
         [$customer] = $this->customer();

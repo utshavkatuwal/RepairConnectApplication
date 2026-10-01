@@ -20,6 +20,13 @@ class JobResource extends JsonResource
             'accepted_at' => $this->accepted_at,
             'started_at' => $this->started_at,
             'completed_at' => $this->completed_at,
+            'title' => $this->request?->title,
+            'scheduled_at' => $this->request?->scheduled_at,
+            'address' => $this->request?->address,
+            'latitude' => $this->request?->latitude,
+            'longitude' => $this->request?->longitude,
+            'customer_name' => $this->customer?->name,
+            'technician_name' => $this->technician?->name,
         ];
     }
 }

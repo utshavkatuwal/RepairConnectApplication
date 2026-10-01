@@ -86,7 +86,9 @@ class PaymentTest extends TestCase
         $this->assertEquals('successful', $settled->status);
         $this->assertEquals(100, (float) $settled->commission_amount);
         $this->assertEquals(900, (float) $settled->technician_amount);
-        $this->assertEquals(800, app(WalletService::class)->balance($job->technician_id));
+        // Net wallet = technician_amount exactly (900): gross credit 1000
+        // minus the 100 commission entry — never double-deducted.
+        $this->assertEquals(900, app(WalletService::class)->balance($job->technician_id));
 
         // Double settle rejected — no double credit.
         $this->expectExceptionMessage('no longer settleable');

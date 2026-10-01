@@ -14,6 +14,26 @@ void main() {
     expect(normalizeStatus('cancelled'), JobStatus.cancelled);
   });
 
+  test('domain statuses round-trip to backend enum values', () {
+    expect(apiStatus(JobStatus.accepted), 'accepted');
+    expect(apiStatus(JobStatus.enRoute), 'technician_arriving');
+    expect(apiStatus(JobStatus.inProgress), 'in_progress');
+    expect(apiStatus(JobStatus.completed), 'completed');
+    expect(apiStatus(JobStatus.cancelled), 'cancelled');
+    expect(apiStatus(JobStatus.disputed), 'disputed');
+    for (final raw in [
+      'accepted',
+      'technician_arriving',
+      'in_progress',
+      'completed',
+      'cancelled',
+      'disputed',
+    ]) {
+      expect(apiStatus(normalizeStatus(raw)), raw,
+          reason: 'round trip for $raw');
+    }
+  });
+
   test('unknown statuses stay visible but inert', () {
     final s = normalizeStatus('teleporting');
     expect(JobStatus.transitions[s], isNull);

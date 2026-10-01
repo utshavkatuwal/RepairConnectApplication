@@ -37,6 +37,15 @@ class PaymentController extends Controller
         return response()->json(['success' => true, 'message' => 'Callback processed.', 'data' => ['status' => $payment->status]]);
     }
 
+    /** Sandbox confirmation (local dev provider). Verification shared with webhook path. */
+    public function confirm(Request $request, int $id, PaymentService $payments)
+    {
+        $payment = Payment::findOrFail($id);
+        $updated = $payments->confirm($request->user(), $payment);
+
+        return response()->json(['success' => true, 'message' => 'Payment confirmed.', 'data' => $updated]);
+    }
+
     public function show(Request $request, int $id)
     {
         $payment = Payment::findOrFail($id);

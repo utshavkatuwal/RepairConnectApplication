@@ -24,13 +24,30 @@ class AppEnv {
   static String get mapProvider =>
       dotenv.isInitialized ? dotenv.get('MAP_PROVIDER', fallback: 'carto') : 'carto';
 
-  /// Public Carto basemap style URL (no secret). Provider keys, if any,
-  /// stay server-side; Flutter only renders tiles + sends coordinates.
-  static String get mapTileUrl => dotenv.isInitialized
-      ? dotenv.get('MAP_TILE_URL',
-          fallback:
-              'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png')
-      : 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
+  /// Public Carto key (tiles + reverse geocoding). Backend proxies
+  /// geocoding with its own copy; this key is for tile requests only.
+  static String get mapApiKey => dotenv.isInitialized
+      ? dotenv.get('MAP_TILE_API_KEY', fallback: '')
+      : '';
+
+  /// Theme-aware Carto basemap: `dark_all` in dark mode, `voyager`
+  /// in light mode. Optional MAP_TILE_URL override still wins (may
+  /// contain `{z}/{x}/{y}` placeholders).
+  static String mapTileUrlFor(Brightness brightness) {
+    final override = dotenv.isInitialized
+        ? dotenv.get('MAP_TILE_URL', fallback: '')
+        : '';
+    final base = override.isNotEmpty
+        ? override
+        : (brightness == Brightness.dark
+            ? 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+            : 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png');
+    final key = mapApiKey;
+    if (key.isEmpty) return base;
+    // CARTO basemaps accept the key as `key=` (api_key= is ignored and
+    // returns the "API KEY REQUIRED" watermark tile).
+    return base.contains('?') ? '$base&key=$key' : '$base?key=$key';
+  }
 
   /// Fail-fast configuration check. Call once at startup: a malformed
   /// base URL is a loud startup error, never a silent demo fallback.

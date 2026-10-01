@@ -903,3 +903,210 @@ class AdminReviewsNote extends StatelessWidget {
                 color: RepairColors.mutedOn(context))));
   }
 }
+
+/// Withdrawal requests: technician asked (amount + platform + mobile);
+/// admin initiates the payout, marks it paid, or rejects with a reason.
+class AdminWithdrawalsScreen extends ConsumerStatefulWidget {
+  const AdminWithdrawalsScreen({super.key});
+  @override
+  ConsumerState<AdminWithdrawalsScreen> createState() =>
+      _WState();
+}
+
+class _WState extends ConsumerState<AdminWithdrawalsScreen> {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: const RcBackAppBar(
+          title: 'Withdrawals',
+          fallback: AppRoutes.adminDashboard),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: ref.watch(adminRepoProvider).withdrawals(),
+        builder: (ctx, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(
+                child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            return AsyncStateView(
+                loading: false,
+                failure: snap.error,
+                onRetry: () => setState(() {}),
+                onLogin: () async {
+                  await ref
+                      .read(authProvider.notifier)
+                      .expire();
+                  if (context.mounted) {
+                    context.go(AppRoutes.login);
+                  }
+                },
+                child: const SizedBox());
+          }
+          final items = snap.data ?? [];
+          if (items.isEmpty) {
+            return const AsyncStateView(
+                loading: false,
+                empty: true,
+                emptyText: 'No withdrawal requests.',
+                child: SizedBox());
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: items.length,
+            itemBuilder: (_, i) {
+              final w = items[i];
+              final status = '${w['status'] ?? ''}';
+              final tech = w['technician'];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: RcCard(
+                    child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                      Text(
+                          'NPR ${w['amount']} • ${w['method'] ?? ''}',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: RepairColors.headingOn(
+                                  context))),
+                      Text(
+                          'To: ${w['account_identifier'] ?? ''} • ${tech is Map ? tech['name'] ?? '' : ''}',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: RepairColors.mutedOn(
+                                  context))),
+                      Text('Status: ${status.toUpperCase()}',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: RepairColors.tealOn(
+                                  context))),
+                      const SizedBox(height: 10),
+                      if (status == 'pending')
+                        Row(children: [
+                          Expanded(
+                              child: RcButton(
+                                  label: 'Initiate payout',
+                                  onPressed: () => _decide(
+                                      '${w['id']}', 'processing'))),
+                          const SizedBox(width: 8),
+                          Expanded(
+                              child: RcButton(
+                                  label: 'Reject',
+                                  destructive: true,
+                                  onPressed: () => _decide(
+                                      '${w['id']}',
+                                      'rejected',
+                                      needsReason: true))),
+                        ]),
+                      if (status == 'processing')
+                        Row(children: [
+                          Expanded(
+                              child: RcButton(
+                                  label: 'Mark as paid',
+                                  onPressed: () => _decide(
+                                      '${w['id']}', 'paid'))),
+                          const SizedBox(width: 8),
+                          Expanded(
+                              child: RcButton(
+                                  label: 'Reject',
+                                  destructive: true,
+                                  onPressed: () => _decide(
+                                      '${w['id']}',
+                                      'rejected',
+                                      needsReason: true))),
+                        ]),
+                      if (status == 'paid' &&
+                          w['transaction_reference'] != null)
+                        Text(
+                            'Ref: ${w['transaction_reference']}',
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: RepairColors.mutedOn(
+                                    context))),
+                    ])),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _decide(String id, String decision,
+      {bool needsReason = false}) async {
+    String? note;
+    if (needsReason) {
+      note = await _askReason();
+      if (note == null) return;
+    } else if (decision == 'paid') {
+      note = await _askReference();
+      if (note == null) return;
+    }
+    try {
+      await ref
+          .read(adminRepoProvider)
+          .decideWithdrawal(id, decision, note: note);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Withdrawal $decision (audited).')));
+      setState(() {});
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
+  }
+
+  Future<String?> _askReference() async {
+    final c = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Payout reference'),
+        content: TextField(
+          controller: c,
+          autofocus: true,
+          decoration: const InputDecoration(
+              hintText: 'Transaction reference / receipt'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Back')),
+          ElevatedButton(
+              onPressed: () =>
+                  Navigator.pop(ctx, c.text.trim().isEmpty ? 'manual' : c.text.trim()),
+              child: const Text('Confirm paid')),
+        ],
+      ),
+    );
+  }
+
+  Future<String?> _askReason() async {
+    final c = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rejection reason'),
+        content: TextField(
+          controller: c,
+          maxLines: 3,
+          autofocus: true,
+          decoration: const InputDecoration(
+              hintText: 'Reason (min 5 chars)'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Back')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(
+                  ctx, c.text.trim().length >= 5 ? c.text.trim() : null),
+              child: const Text('Reject')),
+        ],
+      ),
+    );
+  }
+}

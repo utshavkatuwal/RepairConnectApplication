@@ -2,8 +2,10 @@
 
 use App\Http\Controllers\Api\V1\AdminController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\BillController;
 use App\Http\Controllers\Api\V1\ChatController;
 use App\Http\Controllers\Api\V1\ComplaintController;
+use App\Http\Controllers\Api\V1\GeocodeController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\JobController;
 use App\Http\Controllers\Api\V1\NotificationController;
@@ -34,6 +36,7 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::get('specialties', [TechnicianController::class, 'specialties']);
+    Route::get('geocode/reverse', [GeocodeController::class, 'reverse'])->middleware('throttle:60,1');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('devices', [NotificationController::class, 'device']);
@@ -73,7 +76,10 @@ Route::prefix('v1')->group(function () {
         Route::get('jobs/{id}', [JobController::class, 'show']);
         Route::post('jobs/{id}/accept', [JobController::class, 'accept'])->middleware('role:technician,admin');
         Route::post('jobs/{id}/transition', [JobController::class, 'transition']);
+        Route::post('jobs/{id}/bill', [BillController::class, 'store'])->middleware('role:technician');
+        Route::get('jobs/{id}/bill', [BillController::class, 'show']);
         Route::post('payments', [PaymentController::class, 'initiate'])->middleware('throttle:30,1');
+        Route::post('payments/{id}/confirm', [PaymentController::class, 'confirm']);
         Route::get('payments/{id}', [PaymentController::class, 'show']);
         Route::get('conversations/{id}/messages', [ChatController::class, 'messages']);
         Route::post('conversations/{id}/messages', [ChatController::class, 'send']);
@@ -96,6 +102,7 @@ Route::prefix('v1')->group(function () {
             Route::post('complaints/{id}/resolve', [ComplaintController::class, 'resolve']);
             Route::get('jobs', [AdminController::class, 'jobs']);
             Route::get('payments', [AdminController::class, 'payments']);
+            Route::get('withdrawals', [AdminController::class, 'withdrawals']);
             Route::get('complaints', [AdminController::class, 'complaints']);
             Route::get('audit', [AdminController::class, 'audit']);
             Route::get('settings', [AdminController::class, 'settings']);

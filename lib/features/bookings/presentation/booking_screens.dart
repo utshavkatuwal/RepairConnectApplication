@@ -1,4 +1,4 @@
-﻿// ignore_for_file: prefer_const_constructors
+// ignore_for_file: prefer_const_constructors
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +7,7 @@ import '../../../core/auth/role_guards.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/errors/failures.dart';
 import '../../../core/utils/validators.dart';
+import '../../../core/widgets/rc_map.dart';
 import '../../../core/widgets/rc_widgets.dart';
 import '../../../services/notifications/push_service.dart';
 import '../../../shared/models/models.dart';
@@ -23,16 +24,68 @@ class BookingDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _BState extends ConsumerState<BookingDetailScreen> {
-  String _status = JobStatus.accepted;
+  String _status = JobStatus.requested;
   String? _payState;
   bool _busy = false;
-  final List<StatusEvent> _history = [
-    StatusEvent(
-        from: JobStatus.requested,
-        to: JobStatus.accepted,
-        actor: AppRoles.technician,
-        at: DateTime.now().subtract(const Duration(hours: 2))),
-  ];
+  bool _loading = true;
+  String? _loadError;
+  String _bookingLine = 'Loading job…';
+  Booking? _booking;
+
+  /// Id used for transitions and panels: the resolved job id once a
+  /// technician accepted, otherwise the `req-` request id itself.
+  String get _target => _booking?.id ?? widget.id;
+  bool get _isRequest => _target.startsWith('req-');
+  String get _label => _isRequest
+      ? 'Request #${_target.substring(4)}'
+      : 'Booking #$_target';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBooking();
+  }
+
+  Future<void> _loadBooking() async {
+    try {
+      final b = await ref
+          .read(bookingsRepoProvider)
+          .booking(widget.id);
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = null;
+        _booking = b;
+        _status = b.status;
+        final names = [
+          if (b.technicianName != null && b.technicianName!.isNotEmpty)
+            b.technicianName,
+          if (b.customerName != null && b.customerName!.isNotEmpty)
+            b.customerName,
+        ].join(' → ');
+        _bookingLine = [
+          if (b.title != null && b.title!.isNotEmpty) b.title,
+          if (names.isNotEmpty) names,
+          if (b.scheduledAt != null && b.scheduledAt!.isNotEmpty)
+            'Scheduled: ${_fmtWhen(b.scheduledAt!)}',
+        ].join(' • ');
+        if (_bookingLine == 'Loading job…' || _bookingLine.isEmpty) {
+          _bookingLine = _label;
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        if (_booking == null) {
+          _loadError = e is Failure ? userMessage(e) : e.toString();
+          _bookingLine = _label;
+        }
+      });
+    }
+  }
+
+  final List<StatusEvent> _history = [];
 
   Future<void> _move(String to) async {
     final role =
@@ -46,7 +99,7 @@ class _BState extends ConsumerState<BookingDetailScreen> {
     setState(() => _busy = true);
     try {
       final b = await ref.read(bookingsRepoProvider).transition(
-          widget.id, to,
+          _target, to,
           knownFrom: _status, actorRole: role, reason: reason);
       setState(() {
         _history.add(StatusEvent(
@@ -55,12 +108,16 @@ class _BState extends ConsumerState<BookingDetailScreen> {
             actor: role,
             at: DateTime.now(),
             reason: reason));
+        // Accepting mints the job: _booking now carries its id, so chat
+        // and billing below switch from the request to the real job.
+        _booking = b;
         _status = b.status;
       });
       ref.read(notificationCenterProvider).record(
           type: NotificationTypes.booking,
           title: 'Booking ${b.status}',
-          body: '${widget.id} moved to ${b.status} by $role.');
+          body: '$_label moved to ${b.status} by $role.');
+      if (b.status == JobStatus.accepted) _loadBooking();
     } catch (e) {
       messenger.showSnackBar(SnackBar(
           content: Text(e is Failure
@@ -116,7 +173,7 @@ class _BState extends ConsumerState<BookingDetailScreen> {
     final next = JobMachine.nextFor(role, _status);
     return Scaffold(
       appBar: RcBackAppBar(
-          title: 'Booking ${widget.id}',
+          title: _label,
           fallback: homeForRole(role)),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -139,7 +196,11 @@ class _BState extends ConsumerState<BookingDetailScreen> {
                       decoration: BoxDecoration(
                           color: RepairColors.tealDim,
                           borderRadius: BorderRadius.circular(20)),
-                      child: Text(_payState ?? 'PAYMENT PENDING',
+                      child: Text(
+                          _payState ??
+                              (_isRequest
+                                  ? 'AWAITING TECHNICIAN'
+                                  : 'PAYMENT PENDING'),
                           style: const TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
@@ -152,48 +213,111 @@ class _BState extends ConsumerState<BookingDetailScreen> {
                     style: TextStyle(
                         fontSize: 11,
                         color: RepairColors.tealOn(context))),
-                const SizedBox(height: 4),
-                Text('Dr. Keith Sterling → Demo Customer',
-                    style:
-                        TextStyle(fontSize: 12, color: RepairColors.mutedOn(context))),
-                Text('Anesthesia Vent Calibration • \$299',
+                Text(_bookingLine,
                     style:
                         TextStyle(fontSize: 12, color: RepairColors.mutedOn(context))),
               ],
             ),
           ),
           const SizedBox(height: 12),
+          if (_loadError != null) ...[
+            RcCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Could not load this booking',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: RepairColors.headingOn(context))),
+                  const SizedBox(height: 4),
+                  Text(_loadError!,
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: RepairColors.mutedOn(context))),
+                  const SizedBox(height: 8),
+                  RcButton(
+                      label: 'Retry',
+                      outline: true,
+                      onPressed: () {
+                        setState(() {
+                          _loading = true;
+                          _loadError = null;
+                        });
+                        _loadBooking();
+                      }),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           Text('PROGRESS JOB (ROLE-GATED, VALID ONLY)',
               style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
                   color: RepairColors.tealOn(context))),
           const SizedBox(height: 8),
-          if (next.isEmpty)
+          if (_loading)
+            Text('Loading…',
+                style: TextStyle(
+                    color: RepairColors.mutedOn(context), fontSize: 12)),
+          if (!_loading && next.isEmpty)
             Text(
                 'No actions for your role here. Completed jobs reopen only via dispute; cancelled is terminal.',
                 style: TextStyle(
                     color: RepairColors.mutedOn(context), fontSize: 12)),
-          for (final s in next)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: RcButton(
-                  label: s == JobStatus.cancelled
-                      ? 'Cancel booking…'
-                      : s == JobStatus.disputed
-                          ? 'Dispute booking…'
-                          : 'Move to $s',
-                  destructive: s == JobStatus.cancelled,
-                  loading: _busy,
-                  onPressed: () => _move(s)),
-            ),
+          if (!_loading)
+            for (final s in next)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: RcButton(
+                    label: s == JobStatus.cancelled
+                        ? 'Cancel booking…'
+                        : s == JobStatus.disputed
+                            ? 'Dispute booking…'
+                            : 'Move to $s',
+                    destructive: s == JobStatus.cancelled,
+                    loading: _busy,
+                    onPressed: () => _move(s)),
+              ),
           const SizedBox(height: 12),
+          if (_booking != null &&
+              _booking!.latitude != null &&
+              _booking!.longitude != null) ...[
+            Text('JOB LOCATION',
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: RepairColors.tealOn(context))),
+            const SizedBox(height: 8),
+            RcMap(
+              centerLat: _booking!.latitude,
+              centerLng: _booking!.longitude,
+              markerLat: _booking!.latitude,
+              markerLng: _booking!.longitude,
+              interactive: false,
+            ),
+            if (_booking!.address != null &&
+                _booking!.address!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(_booking!.address!,
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: RepairColors.mutedOn(context))),
+              ),
+            const SizedBox(height: 12),
+          ],
           Text('STATUS HISTORY',
               style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
                   color: RepairColors.tealOn(context))),
           const SizedBox(height: 8),
+          if (_history.isEmpty)
+            Text(
+                'No transitions yet on this screen — actions you perform appear here.',
+                style: TextStyle(
+                    color: RepairColors.mutedOn(context), fontSize: 12)),
           for (final h in _history)
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
@@ -215,18 +339,49 @@ class _BState extends ConsumerState<BookingDetailScreen> {
                   ])),
             ),
           const SizedBox(height: 12),
-          RcButton(
-              label: 'Open chat',
-              outline: true,
-              onPressed: () =>
-                  context.go('${AppRoutes.chat}/conv-${widget.id}')),
-          const SizedBox(height: 12),
-          PaymentPanel(bookingId: widget.id),
-          const SizedBox(height: 12),
-          ReviewPanel(bookingId: widget.id, bookingStatus: _status),
+          if (_isRequest) ...[
+            // No conversation/bill until a technician accepts: the
+            // backend only mints them together with the job.
+            Text(
+                'Waiting for a technician to accept. Chat and payment open once the job exists.',
+                style: TextStyle(
+                    fontSize: 12, color: RepairColors.mutedOn(context))),
+          ] else ...[
+            RcButton(
+                label: 'Open chat',
+                outline: true,
+                onPressed: () =>
+                    context.go('${AppRoutes.chat}/conv-$_target')),
+            const SizedBox(height: 12),
+            PaymentPanel(
+                key: ValueKey(_target),
+                bookingId: _target,
+                jobStatus: _status,
+                onState: (s) {
+                  if (mounted && _payState != s) {
+                    setState(() => _payState = s);
+                  }
+                }),
+            const SizedBox(height: 12),
+            ReviewPanel(
+                key: ValueKey(_target),
+                bookingId: _target,
+                bookingStatus: _status),
+          ],
         ],
       ),
     );
+  }
+
+  /// Backend stores UTC; show the customer's local wall-clock time.
+  String _fmtWhen(String raw) {
+    final dt = DateTime.tryParse(raw);
+    if (dt == null) return raw;
+    final l = dt.toLocal();
+    return '${l.year}-${l.month.toString().padLeft(2, '0')}-'
+        '${l.day.toString().padLeft(2, '0')} '
+        '${l.hour.toString().padLeft(2, '0')}:'
+        '${l.minute.toString().padLeft(2, '0')}';
   }
 
   String _fmt(DateTime d) =>
@@ -235,25 +390,184 @@ class _BState extends ConsumerState<BookingDetailScreen> {
 
 class PaymentPanel extends ConsumerStatefulWidget {
   final String bookingId;
-  const PaymentPanel({super.key, required this.bookingId});
+  final String jobStatus;
+
+  /// Reports the server-side bill/payment state to the parent so the
+  /// booking header chip never shows a stale placeholder.
+  final void Function(String state)? onState;
+  const PaymentPanel(
+      {super.key,
+      required this.bookingId,
+      this.jobStatus = '',
+      this.onState});
   @override
   ConsumerState<PaymentPanel> createState() => _PState();
 }
 
 class _PState extends ConsumerState<PaymentPanel> {
   final _amount = TextEditingController();
+  final _billNotes = TextEditingController();
+  final _billAmount = TextEditingController();
   String _state = PaymentStatus.pending;
   String? _txId;
   bool _busy = false;
   String? _err;
+  String? _provider = 'sandbox';
+  Map<String, dynamic>? _bill;
 
   double? get _parsed => double.tryParse(_amount.text.trim());
 
   @override
+  void initState() {
+    super.initState();
+    _loadBill();
+  }
+
+  Future<void> _loadBill() async {
+    try {
+      final b =
+          await ref.read(paymentsRepoProvider).bill(widget.bookingId);
+      if (!mounted) return;
+      setState(() {
+        _bill = b;
+        if (b != null && _amount.text.trim().isEmpty) {
+          _amount.text = '${b['amount']}';
+        }
+      });
+      widget.onState?.call(_billState());
+    } catch (_) {
+      if (mounted) setState(() {});
+    }
+  }
+
+  String _billState() {
+    final b = _bill;
+    if (b == null) return 'NO BILL YET';
+    return '${b['status']}' == 'paid'
+        ? 'PAID'
+        : 'AWAITING PAYMENT';
+  }
+
+  Future<void> _createBill() async {
+    final amt = double.tryParse(_billAmount.text.trim());
+    if (amt == null || amt <= 0) {
+      setState(() => _err = 'Enter a valid bill amount');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _err = null;
+    });
+    try {
+      await ref.read(paymentsRepoProvider).createBill(
+          bookingId: widget.bookingId,
+          amount: amt,
+          notes: _billNotes.text.trim());
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Bill issued. The customer can now pay it.')));
+      await _loadBill();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _err =
+            e is Failure ? userMessage(e) : e.toString());
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _pay() async {
+    final billAmount = _bill?['amount'];
+    final amount = billAmount != null
+        ? (double.tryParse('$billAmount') ?? _parsed)
+        : _parsed;
+    if (amount == null) return;
+    setState(() {
+      _busy = true;
+      _err = null;
+    });
+    try {
+      final repo = ref.read(paymentsRepoProvider);
+      final tx = await repo.startPayment(
+          bookingId: widget.bookingId,
+          provider: _provider ?? 'sandbox',
+          amount: amount,
+          idempotencyKey: newIdempotencyKey());
+      if (!mounted) return;
+      setState(() {
+        _state = '${tx['status']}';
+        _txId = '${tx['id']}';
+      });
+      var verified = await repo.status('${tx['id']}');
+      if (!mounted) return;
+      // Sandbox: customer confirms in-app to settle through backend.
+      if (verified.toLowerCase() != 'successful' &&
+          _provider == 'sandbox') {
+        final go = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Confirm sandbox payment'),
+            content: Text(
+                'Sandbox mode: confirm NPR $amount to settle through the backend wallet (test provider, no real money).'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel')),
+              ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Confirm payment')),
+            ],
+          ),
+        );
+        if (go == true) {
+          await repo.confirm('${tx['id']}');
+          verified = await repo.status('${tx['id']}');
+        }
+      }
+      if (!mounted) return;
+      setState(() => _state = verified);
+      widget.onState?.call(verified.toUpperCase());
+      ref.read(notificationCenterProvider).record(
+          type: NotificationTypes.payment,
+          title: 'Payment $verified',
+          body:
+              '${widget.bookingId} server state: $verified.');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                'Payment submitted. Server state: $verified.')));
+      }
+      await _loadBill();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _err = e is Failure
+            ? userMessage(e)
+            : e.toString());
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final amountErr = _amount.text.trim().isEmpty
-        ? 'Enter the agreed amount'
-        : PaymentMachine.validateAmount(_parsed ?? double.nan);
+    final role = ref.watch(
+            authProvider.select((a) => a.valueOrNull?.role)) ??
+        AppRoles.customer;
+    final isTech = role == AppRoles.technician;
+    final isCustomer = role == AppRoles.customer;
+    final jobCompleted = widget.jobStatus == JobStatus.completed;
+    final billAmount = _bill?['amount'];
+    final billIssued = _bill != null && _bill!['status'] == 'issued';
+    final billPaid = _bill != null && _bill!['status'] == 'paid';
+
+    final amountErr = billIssued
+        ? null
+        : _amount.text.trim().isEmpty
+            ? 'Enter the agreed amount'
+            : PaymentMachine.validateAmount(_parsed ?? double.nan);
+
     return RcCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -268,21 +582,113 @@ class _PState extends ConsumerState<PaymentPanel> {
                   color: RepairColors.headingOn(context),
                   fontSize: 13)),
           const SizedBox(height: 8),
-          TextFormField(
-            controller: _amount,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-                labelText: 'AMOUNT (NPR)',
-                hintText: 'Agreed job amount'),
-            onChanged: (_) => setState(() {}),
-          ),
+
+          // --- Technician: issue a bill after completion ---
+          if (isTech && jobCompleted && _bill == null) ...[
+            Text('ISSUE BILL',
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: RepairColors.tealOn(context))),
+            const SizedBox(height: 6),
+            TextFormField(
+              controller: _billAmount,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                  labelText: 'BILL AMOUNT (NPR)'),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _billNotes,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                  labelText: 'NOTES (OPTIONAL)',
+                  hintText: 'Parts, labour, description…'),
+            ),
+            const SizedBox(height: 8),
+            RcButton(
+                label: 'Issue bill to customer',
+                loading: _busy,
+                onPressed: _createBill),
+            const SizedBox(height: 8),
+          ],
+
+          // --- Bill card (both roles) ---
+          if (_bill != null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                  color: RepairColors.tealDim,
+                  borderRadius: BorderRadius.circular(8)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                      'BILL #${_bill!['id']} • NPR $billAmount • ${'${_bill!['status']}'.toUpperCase()}',
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: RepairColors.tealBright)),
+                  if (_bill!['notes'] != null &&
+                      '${_bill!['notes']}'.isNotEmpty)
+                    Text('${_bill!['notes']}',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color:
+                                RepairColors.mutedOn(context))),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+
+          // --- Customer: pay ---
+          if (isCustomer &&
+              jobCompleted &&
+              (billIssued || _bill == null)) ...[
+            if (!billIssued)
+              TextFormField(
+                controller: _amount,
+                keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true),
+                decoration: const InputDecoration(
+                    labelText: 'AMOUNT (NPR)',
+                    hintText: 'Agreed job amount'),
+                onChanged: (_) => setState(() {}),
+              ),
+            if (billIssued)
+              Text('Pay the issued bill: NPR $billAmount',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: RepairColors.headingOn(context))),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<String>(
+              initialValue: _provider,
+              decoration:
+                  const InputDecoration(labelText: 'PAYMENT PROVIDER'),
+              items: const [
+                DropdownMenuItem(
+                    value: 'sandbox',
+                    child: Text('Sandbox (works locally)')),
+                DropdownMenuItem(
+                    value: 'esewa', child: Text('eSewa (needs creds)')),
+                DropdownMenuItem(
+                    value: 'khalti', child: Text('Khalti (needs creds)')),
+              ],
+              onChanged: (v) =>
+                  setState(() => _provider = v ?? 'sandbox'),
+            ),
+            const SizedBox(height: 6),
+          ],
+
           if (_txId != null)
             Text('Tx: $_txId',
                 style: TextStyle(
                     fontSize: 10,
                     color: RepairColors.faintOn(context))),
-          if (amountErr != null)
+          if (!billIssued && amountErr != null)
             Text(amountErr,
                 style: const TextStyle(
                     fontSize: 11, color: RepairColors.red)),
@@ -292,62 +698,30 @@ class _PState extends ConsumerState<PaymentPanel> {
                 style: const TextStyle(
                     fontSize: 11, color: RepairColors.red)),
           ],
-          const SizedBox(height: 8),
-          RcButton(
-              label: _state == PaymentStatus.failed
-                  ? 'Retry failed payment'
-                  : 'Start / retry payment',
-              loading: _busy,
-              onPressed: amountErr != null
-                  ? null
-                  : () async {
-                      setState(() {
-                        _busy = true;
-                        _err = null;
-                      });
-                      try {
-                        final repo =
-                            ref.read(paymentsRepoProvider);
-                        final tx = await repo.startPayment(
-                            bookingId: widget.bookingId,
-                            amount: _parsed!,
-                            idempotencyKey:
-                                newIdempotencyKey());
-                        if (!mounted) return;
-                        setState(() {
-                          _state = '${tx['status']}';
-                          _txId = '${tx['id']}';
-                        });
-                        final verified = await repo
-                            .status('${tx['id']}');
-                        if (!mounted) return;
-                        setState(() => _state = verified);
-                        ref
-                            .read(notificationCenterProvider)
-                            .record(
-                                type:
-                                    NotificationTypes.payment,
-                                title: 'Payment $verified',
-                                body:
-                                    '${widget.bookingId} server state: $verified.');
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context)
-                              .showSnackBar(SnackBar(
-                                  content: Text(
-                                      'Payment submitted. Server state: $verified. Never trust client success alone.')));
-                        }
-                      } catch (e) {
-                        if (mounted) {
-                          setState(() => _err = e is Failure
-                              ? userMessage(e)
-                              : e.toString());
-                        }
-                      } finally {
-                        if (mounted) {
-                          setState(() => _busy = false);
-                        }
-                      }
-                    }),
+          if (isCustomer &&
+              jobCompleted &&
+              (billIssued || _bill == null)) ...[
+            const SizedBox(height: 8),
+            RcButton(
+                label: billPaid
+                    ? 'Bill paid'
+                    : _state == PaymentStatus.failed
+                        ? 'Retry failed payment'
+                        : billIssued
+                            ? 'Pay bill NPR $billAmount'
+                            : 'Start / retry payment',
+                loading: _busy,
+                onPressed: (amountErr != null ||
+                        (billPaid && billIssued))
+                    ? null
+                    : _pay),
+          ],
+          if (isTech && !jobCompleted && _bill == null)
+            Text(
+                'Billing unlocks after you complete the job.',
+                style: TextStyle(
+                    fontSize: 11,
+                    color: RepairColors.faintOn(context))),
           const SizedBox(height: 10),
           FutureBuilder(
             future: ref
@@ -373,7 +747,7 @@ class _PState extends ConsumerState<PaymentPanel> {
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
                 children: [
-                  Text('TRANSACTIONS',
+                  Text('PAYMENT HISTORY',
                       style: TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
@@ -383,7 +757,7 @@ class _PState extends ConsumerState<PaymentPanel> {
                       padding:
                           const EdgeInsets.only(top: 4),
                       child: Text(
-                          '${t.id} • ${t.kind} • \$${t.amount.toStringAsFixed(2)}',
+                          '#${t.id} • ${t.kind} • NPR ${t.amount.toStringAsFixed(2)}',
                           style: TextStyle(
                               fontSize: 11,
                               color: RepairColors.mutedOn(context))),
@@ -406,7 +780,7 @@ class _PState extends ConsumerState<PaymentPanel> {
                       color: RepairColors.faintOn(context)));
               }
               return Text(
-                  'Invoice ${inv.id} • Total \$${inv.total.toStringAsFixed(2)}',
+                  'Invoice ${inv.id} • Total NPR ${inv.total.toStringAsFixed(2)}',
                   style: TextStyle(
                       fontSize: 11,
                       color: RepairColors.tealOn(context)));

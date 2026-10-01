@@ -73,6 +73,9 @@ void main() {
         [JobStatus.cancelled]);
     expect(
         JobMachine.nextFor(AppRoles.technician, JobStatus.accepted),
-        contains(JobStatus.scheduled));
+        contains(JobStatus.enRoute));
+    expect(
+        JobMachine.nextFor(AppRoles.technician, JobStatus.accepted),
+        isNot(contains(JobStatus.scheduled)));
   });
 }

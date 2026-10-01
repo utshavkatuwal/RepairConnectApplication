@@ -15,7 +15,7 @@ class PaymentInitiateRequest extends FormRequest
     {
         return [
             'job_id' => ['required', 'exists:jobs,id'],
-            'provider' => ['required', 'in:esewa,khalti'],
+            'provider' => ['required', 'in:esewa,khalti,sandbox'],
             'amount' => ['required', 'numeric', 'min:1', 'max:100000'],
             'idempotency_key' => ['required', 'string', 'max:64'],
         ];

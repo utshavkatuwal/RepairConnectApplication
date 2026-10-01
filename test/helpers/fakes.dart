@@ -79,17 +79,50 @@ class FakeLocationService implements LocationService {
 class FakePaymentsRepository implements PaymentsRepository {
   final Map<String, String> _states = {};
   final Map<String, List<Transaction>> _txs = {};
+  final Map<String, Map<String, dynamic>> _bills = {};
 
   @override
   Future<Map<String, dynamic>> startPayment(
           {required String bookingId,
+          required String provider,
           required double amount,
           required String idempotencyKey}) async =>
       {
         'id': 'tx_$idempotencyKey',
         'booking_id': bookingId,
+        'provider': provider,
         'amount': amount,
-        'status': _states.putIfAbsent(idempotencyKey, () => 'PENDING'),
+        'status': _states.putIfAbsent(idempotencyKey, () => 'initiated'),
+      };
+
+  @override
+  Future<Map<String, dynamic>> confirm(String paymentId) async {
+    for (final key in _states.keys.toList()) {
+      if ('tx_$key' == paymentId) {
+        _states[key] = 'successful';
+        return {'id': paymentId, 'status': 'successful'};
+      }
+    }
+    throw Exception('Payment not found');
+  }
+
+  @override
+  Future<Map<String, dynamic>?> bill(String bookingId) async =>
+      _bills[bookingId];
+
+  @override
+  Future<Map<String, dynamic>> createBill(
+          {required String bookingId,
+          required double amount,
+          String? notes,
+          List<Map<String, dynamic>>? lineItems}) async =>
+      _bills[bookingId] = {
+        'id': 'bill-$bookingId',
+        'job_id': bookingId,
+        'amount': amount,
+        'notes': notes,
+        'line_items': lineItems,
+        'status': 'issued',
       };
 
   @override
@@ -97,7 +130,7 @@ class FakePaymentsRepository implements PaymentsRepository {
     for (final e in _states.entries) {
       if ('tx_${e.key}' == transactionId) return e.value;
     }
-    return 'PENDING';
+    return 'initiated';
   }
 
   @override

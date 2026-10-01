@@ -15,9 +15,9 @@ class JobMachine {
   static const actorMatrix = <String, Map<String, List<String>>>{
     AppRoles.technician: {
       JobStatus.requested: [JobStatus.accepted],
-      JobStatus.accepted: [JobStatus.scheduled, JobStatus.cancelled],
+      JobStatus.accepted: [JobStatus.enRoute, JobStatus.cancelled],
       JobStatus.scheduled: [JobStatus.enRoute, JobStatus.cancelled],
-      JobStatus.enRoute: [JobStatus.arrived, JobStatus.cancelled],
+      JobStatus.enRoute: [JobStatus.inProgress, JobStatus.cancelled],
       JobStatus.arrived: [JobStatus.inProgress, JobStatus.cancelled],
       JobStatus.inProgress: [JobStatus.completed, JobStatus.disputed],
       JobStatus.completed: [JobStatus.disputed],
@@ -33,9 +33,9 @@ class JobMachine {
     },
     AppRoles.admin: {
       JobStatus.requested: [JobStatus.accepted, JobStatus.cancelled],
-      JobStatus.accepted: [JobStatus.scheduled, JobStatus.cancelled],
+      JobStatus.accepted: [JobStatus.enRoute, JobStatus.cancelled],
       JobStatus.scheduled: [JobStatus.enRoute, JobStatus.cancelled],
-      JobStatus.enRoute: [JobStatus.arrived, JobStatus.cancelled],
+      JobStatus.enRoute: [JobStatus.inProgress, JobStatus.cancelled],
       JobStatus.arrived: [JobStatus.inProgress, JobStatus.cancelled],
       JobStatus.inProgress: [JobStatus.completed, JobStatus.disputed],
       JobStatus.completed: [JobStatus.disputed],

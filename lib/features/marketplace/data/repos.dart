@@ -171,13 +171,56 @@ class BookingsRepository {
           required String to}) =>
       JobMachine.canActor(role: role, from: from, to: to);
 
+  /// Service requests keep their own id until a technician accepts and
+  /// the backend mints a job (separate id sequence). The app carries a
+  /// request as `req-{id}` so job endpoints are never hit with an id they
+  /// cannot resolve; [booking] swaps to the job id once one exists.
+  static const _reqPrefix = 'req-';
+
+  static bool isServiceRequest(String id) => id.startsWith(_reqPrefix);
+
+  static Booking _bookingFromServiceRequest(Map<String, dynamic> sr) =>
+      Booking.fromJson({
+        ...sr,
+        'id': '$_reqPrefix${sr['id']}',
+        'request_id': '${sr['id']}',
+      });
+
+  Future<Map<String, dynamic>> _serviceRequest(String srId) async {
+    final r = await api.getRetry('${ApiRoutes.serviceRequests}/$srId');
+    final body = Map<String, dynamic>.from(r.data as Map);
+    final env = ApiResponse.envelope(body);
+    return env.data ??
+        Map<String, dynamic>.from(
+            body['data'] as Map? ?? <String, dynamic>{});
+  }
+
   /// Current user's bookings: history, invoices, payments derive from this.
+  /// Requests nobody has accepted yet have no job row, so they are merged
+  /// in front of the jobs list — the customer must see what is still
+  /// waiting. That endpoint is customer-scoped (role:customer); technicians
+  /// and admins get a 403 here and simply see their jobs.
   Future<List<Booking>> myBookings() async {
     try {
       final r = await api.getRetry(ApiRoutes.bookings,
           query: {'mine': 1, 'per_page': 50});
-      final body = Map<String, dynamic>.from(r.data as Map);
-      return ApiResponse.list(body, Booking.fromJson);
+      final jobs = ApiResponse.list(
+          Map<String, dynamic>.from(r.data as Map), Booking.fromJson);
+      var requests = const <Booking>[];
+      try {
+        final sr = await api.getRetry(ApiRoutes.serviceRequests,
+            query: {'per_page': 50});
+        final rows = ApiResponse.list(
+            Map<String, dynamic>.from(sr.data as Map), (m) => m);
+        requests = [
+          for (final m in rows)
+            if (m['job_id'] == null) _bookingFromServiceRequest(m),
+        ];
+      } catch (_) {
+        // Customer-only endpoint: other roles are excluded by the
+        // middleware, not by an error in this user's data.
+      }
+      return [...requests, ...jobs];
     } catch (e) {
       throw api.mapError(e);
     }
@@ -233,7 +276,20 @@ class BookingsRepository {
     }
   }
 
+  /// Resolves a booking id in either id space: `req-{id}` returns the
+  /// service request (and switches to the real job as soon as one exists),
+  /// a plain id is fetched as a job.
   Future<Booking> booking(String id) async {
+    if (isServiceRequest(id)) {
+      try {
+        final sr = await _serviceRequest(id.substring(_reqPrefix.length));
+        final jobId = sr['job_id'];
+        if (jobId != null) return await booking('$jobId');
+        return _bookingFromServiceRequest(sr);
+      } on DioException catch (e) {
+        throw api.mapError(e);
+      }
+    }
     try {
       final r = await api.getRetry('${ApiRoutes.bookings}/$id');
       final body = Map<String, dynamic>.from(r.data as Map);
@@ -247,6 +303,9 @@ class BookingsRepository {
 
   /// Strict transition: validates from→to + actor + reason client-side
   /// for fast UX AND relies on server authoritative rejection (§35).
+  /// Before acceptance the id space is the service request: only the
+  /// technician's accept and the customer's cancel exist there (§14 —
+  /// no job means no lifecycle moves, no chat, no bill).
   Future<Booking> transition(String id, String to,
       {String? knownFrom, String? actorRole, String? reason}) async {
     if (!JobStatus.transitions.values.any((l) => l.contains(to)) &&
@@ -269,11 +328,22 @@ class BookingsRepository {
         throw const ValidationFailure(
             'Your role cannot perform this transition');
       }
-      final r = await api.dio.post('${ApiRoutes.bookings}/$id/transition',
-          data: {
-            'status': to,
-            if (reason != null) 'reason': reason,
-          });
+      if (isServiceRequest(cur.id)) {
+        final srId = cur.id.substring(_reqPrefix.length);
+        if (to == JobStatus.accepted) return await acceptRequest(srId);
+        if (to == JobStatus.cancelled) {
+          await api.dio.post('${ApiRoutes.serviceRequests}/$srId/cancel',
+              data: {'reason': reason});
+          return await booking(cur.id);
+        }
+        throw const ValidationFailure(
+            'No technician has accepted this request yet.');
+      }
+      final r = await api.dio
+          .post('${ApiRoutes.bookings}/${cur.id}/transition', data: {
+        'status': apiStatus(to),
+        if (reason != null) 'reason': reason,
+      });
       final body = Map<String, dynamic>.from(r.data as Map);
       final env = ApiResponse.envelope(body);
       return Booking.fromJson(

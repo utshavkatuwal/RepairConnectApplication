@@ -6,7 +6,9 @@ void main() {
   test('job state machine only allows valid transitions', () {
     expect(JobStatus.canTransition('REQUESTED', 'ACCEPTED'), true);
     expect(JobStatus.canTransition('REQUESTED', 'COMPLETED'), false);
-    expect(JobStatus.canTransition('ACCEPTED', 'SCHEDULED'), true);
+    expect(JobStatus.canTransition('ACCEPTED', 'EN_ROUTE'), true);
+    expect(JobStatus.canTransition('ACCEPTED', 'SCHEDULED'), false);
+    expect(JobStatus.canTransition('EN_ROUTE', 'ARRIVED'), false);
     expect(JobStatus.canTransition('IN_PROGRESS', 'COMPLETED'), true);
     expect(JobStatus.canTransition('COMPLETED', 'REQUESTED'), false);
     expect(JobStatus.canTransition('CANCELLED', 'ACCEPTED'), false);

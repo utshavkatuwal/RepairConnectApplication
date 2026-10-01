@@ -87,7 +87,7 @@ class EarningsScreen extends ConsumerWidget {
                             fontWeight: FontWeight.w800,
                             color:
                                 RepairColors.tealOn(context))),
-                    Text('\$${balance.toStringAsFixed(2)}',
+                      Text('NPR ${balance.toStringAsFixed(2)}',
                         style: TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.w800,
@@ -145,7 +145,7 @@ class EarningsScreen extends ConsumerWidget {
                                             .headingOn(
                                                 context)))),
                             Text(
-                                '\$${e.amount.toStringAsFixed(2)}',
+                                'NPR ${e.amount.toStringAsFixed(2)}',
                                 style: TextStyle(
                                     color: RepairColors
                                         .headingOn(context))),
@@ -491,6 +491,7 @@ class _RegState extends ConsumerState<TechRegisterScreen> {
   final _bio = TextEditingController();
   String? _specialtyId;
   LatLng? _pos;
+  PlatformFile? _photo;
   final List<PlatformFile> _docs = [];
   String _docType = 'government_id';
   bool _busy = false;
@@ -592,6 +593,51 @@ class _RegState extends ConsumerState<TechRegisterScreen> {
                           color:
                               RepairColors.tealOn(context))),
                   const SizedBox(height: 8),
+                  Text('PROFILE PHOTO (REQUIRED)',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: RepairColors.headingOn(
+                              context))),
+                  const SizedBox(height: 4),
+                  if (_photo != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                          '${_photo!.name} (${(_photo!.size / 1024).toStringAsFixed(0)} KB)',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: RepairColors.mutedOn(
+                                  context))),
+                    ),
+                  RcButton(
+                      label: _photo == null
+                          ? 'Pick profile photo (JPG/PNG)'
+                          : 'Change profile photo',
+                      outline: true,
+                      onPressed: () async {
+                        final picked = await FilePicker.pickFiles(
+                            type: FileType.custom,
+                            allowedExtensions: const [
+                              'jpg',
+                              'jpeg',
+                              'png'
+                            ],
+                            withData: true);
+                        if (picked != null &&
+                            picked.files.isNotEmpty) {
+                          setState(() =>
+                              _photo = picked.files.first);
+                        }
+                      }),
+                  const SizedBox(height: 10),
+                  Text('CREDENTIAL DOCUMENTS',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: RepairColors.headingOn(
+                              context))),
+                  const SizedBox(height: 4),
                   DropdownButtonFormField<String>(
                     initialValue: _docType,
                     decoration: const InputDecoration(
@@ -685,6 +731,16 @@ class _RegState extends ConsumerState<TechRegisterScreen> {
           'Specialty and GPS position are required.');
       return;
     }
+    if (_photo == null) {
+      setState(() =>
+          _err = 'Profile photo is required for verification.');
+      return;
+    }
+    if (_docs.isEmpty) {
+      setState(() => _err =
+          'Upload at least one credential document.');
+      return;
+    }
     setState(() {
       _busy = true;
       _err = null;
@@ -701,6 +757,9 @@ class _RegState extends ConsumerState<TechRegisterScreen> {
         longitude: _pos!.lng,
       );
       var uploaded = 0;
+      await repo.uploadDocument(
+          file: _photo!, documentType: 'profile_photo');
+      uploaded++;
       for (final d in _docs) {
         await repo.uploadDocument(
             file: d, documentType: _docType);

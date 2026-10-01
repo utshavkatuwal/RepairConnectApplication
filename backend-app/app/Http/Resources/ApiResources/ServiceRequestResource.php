@@ -19,6 +19,10 @@ class ServiceRequestResource extends JsonResource
             'latitude' => (float) $this->latitude,
             'longitude' => (float) $this->longitude,
             'status' => $this->status,
+            'scheduled_at' => $this->scheduled_at,
+            // Clients navigate service requests as "req-{id}" until a
+            // technician accepts; job_id lets them switch to job views.
+            'job_id' => $this->whenLoaded('job', fn () => $this->job?->id),
             'technician' => $this->whenLoaded('job', fn () => [
                 'id' => $this->job->technician_id,
             ]),

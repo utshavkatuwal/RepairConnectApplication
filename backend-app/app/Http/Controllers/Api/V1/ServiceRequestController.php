@@ -35,7 +35,8 @@ class ServiceRequestController extends Controller
 
     public function index(Request $request)
     {
-        $rows = ServiceRequest::where('customer_id', $request->user()->id)
+        $rows = ServiceRequest::with('job')
+            ->where('customer_id', $request->user()->id)
             ->latest()->paginate(20);
 
         return response()->json([

@@ -20,6 +20,13 @@ final _catalogProvider = FutureProvider((ref) async {
   return (cats, techs);
 });
 
+/// Statuses that end a booking — everything else is still "active".
+const _doneStatuses = {
+  JobStatus.completed,
+  JobStatus.cancelled,
+  JobStatus.disputed,
+};
+
 class CustomerHomeScreen extends ConsumerStatefulWidget {
   const CustomerHomeScreen({super.key});
   @override
@@ -30,6 +37,7 @@ class CustomerHomeScreen extends ConsumerStatefulWidget {
 class _HomeState extends ConsumerState<CustomerHomeScreen> {
   late final Future<List<AppNotification>> _notifs;
   late final Future<LatLng?> _pos;
+  late final Future<List<Booking>> _bookings;
 
   @override
   void initState() {
@@ -37,6 +45,7 @@ class _HomeState extends ConsumerState<CustomerHomeScreen> {
     // Memoized once per screen instance: no refetch storm on rebuilds.
     _notifs = ref.read(notificationsRepoProvider).list();
     _pos = ref.read(locationServiceProvider).currentPosition();
+    _bookings = ref.read(bookingsRepoProvider).myBookings();
   }
 
   @override
@@ -154,35 +163,87 @@ class _HomeState extends ConsumerState<CustomerHomeScreen> {
                 },
               ),
               const SizedBox(height: 12),
-              RcCard(
-                onTap: () =>
-                    context.go('${AppRoutes.bookingDetail}/b-active'),
-                child: Row(
-                  children: [
-                    Icon(Icons.bolt_outlined,
-                        color: RepairColors.tealOn(context)),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
+              // Real first open booking (job or unaccepted request);
+              // loading/errors render nothing instead of fake data.
+              FutureBuilder<List<Booking>>(
+                future: _bookings,
+                builder: (ctx, snap) {
+                  if (snap.connectionState ==
+                          ConnectionState.waiting ||
+                      snap.hasError) {
+                    return const SizedBox.shrink();
+                  }
+                  final active = (snap.data ?? [])
+                      .where((b) => !_doneStatuses.contains(b.status))
+                      .firstOrNull;
+                  if (active == null) {
+                    return RcCard(
+                      onTap: () =>
+                          context.go(AppRoutes.createRequest),
+                      child: Row(
                         children: [
-                          Text('Active booking',
-                              style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  color: RepairColors.tealOn(context))),
-                          Text('IPC-9028-T • IN PROGRESS',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  color: RepairColors.headingOn(context))),
+                          Icon(Icons.add_circle_outline,
+                              color: RepairColors.tealOn(context)),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                Text('No active booking',
+                                    style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        color: RepairColors.tealOn(
+                                            context))),
+                                Text('Describe the problem — post a request',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        color: RepairColors.headingOn(
+                                            context))),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.chevron_right,
+                              color: RepairColors.faintOn(context)),
                         ],
                       ),
+                    );
+                  }
+                  return RcCard(
+                    onTap: () => context.go(
+                        '${AppRoutes.bookingDetail}/${active.id}'),
+                    child: Row(
+                      children: [
+                        Icon(Icons.bolt_outlined,
+                            color: RepairColors.tealOn(context)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
+                            children: [
+                              Text('Active booking',
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: RepairColors.tealOn(
+                                          context))),
+                              Text(
+                                  '${active.title ?? 'Job #${active.requestId}'} • ${active.status}',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      color: RepairColors.headingOn(
+                                          context))),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.chevron_right,
+                            color: RepairColors.faintOn(context)),
+                      ],
                     ),
-                    Icon(Icons.chevron_right,
-                        color: RepairColors.faintOn(context)),
-                  ],
-                ),
+                  );
+                },
               ),
               const SizedBox(height: 14),
               Row(
@@ -610,6 +671,37 @@ class _CState extends ConsumerState<CreateRequestScreen> {
   bool _busy = false;
   String? _err;
   LatLng? _pos;
+  bool _scheduled = false;
+  DateTime? _when;
+
+  Future<void> _pickWhen() async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 180)),
+      initialDate: _when ?? now.add(const Duration(days: 1)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: _when == null
+          ? const TimeOfDay(hour: 10, minute: 0)
+          : TimeOfDay.fromDateTime(_when!),
+    );
+    if (time == null) return;
+    setState(() => _when = DateTime(
+        date.year, date.month, date.day, time.hour, time.minute));
+  }
+
+  String? get _whenErr {
+    if (!_scheduled) return null;
+    if (_when == null) return 'Pick the date and time';
+    if (_when!.isBefore(DateTime.now())) {
+      return 'Scheduled time must be in the future';
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -632,7 +724,8 @@ class _CState extends ConsumerState<CreateRequestScreen> {
                   items: items
                       .map((s) => DropdownMenuItem(
                           value: s.id,
-                          child: Text('${s.name} — \$${s.basePrice}')))
+                          child: Text(
+                              '${s.name} — NPR ${s.basePrice.toStringAsFixed(0)}')))
                       .toList(),
                   onChanged: (v) => setState(() {
                     _serviceId = v ?? _serviceId;
@@ -646,6 +739,47 @@ class _CState extends ConsumerState<CreateRequestScreen> {
                 );
               },
             ),
+            const SizedBox(height: 12),
+            Text('WHEN DO YOU NEED IT?',
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: RepairColors.tealOn(context))),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: ChoiceBox(
+                      label: 'Immediate',
+                      selected: !_scheduled,
+                      onTap: () => setState(() {
+                        _scheduled = false;
+                        _when = null;
+                      })),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ChoiceBox(
+                      label: 'Schedule',
+                      selected: _scheduled,
+                      onTap: () => setState(() => _scheduled = true)),
+                ),
+              ],
+            ),
+            if (_scheduled) ...[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _pickWhen,
+                icon: const Icon(Icons.event, size: 16),
+                label: Text(_when == null
+                    ? 'Pick date & time'
+                    : '${_when!.year}-${_when!.month.toString().padLeft(2, '0')}-${_when!.day.toString().padLeft(2, '0')} ${_when!.hour.toString().padLeft(2, '0')}:${_when!.minute.toString().padLeft(2, '0')}'),
+              ),
+              if (_whenErr != null)
+                Text(_whenErr!,
+                    style: const TextStyle(
+                        fontSize: 11, color: RepairColors.red)),
+            ],
             const SizedBox(height: 12),
             RcField(
                 label: 'PROBLEM DETAILS',
@@ -673,10 +807,15 @@ class _CState extends ConsumerState<CreateRequestScreen> {
             ],
             const SizedBox(height: 16),
             RcButton(
-                label: 'Submit request',
+                label: _scheduled ? 'Submit scheduled request' : 'Submit request',
                 loading: _busy,
                 onPressed: () async {
                   if (!_f.currentState!.validate()) return;
+                  final whenErr = _whenErr;
+                  if (whenErr != null) {
+                    setState(() => _err = whenErr);
+                    return;
+                  }
                   setState(() { _busy = true; _err = null; });
                   try {
                     final req = await ref
@@ -685,11 +824,18 @@ class _CState extends ConsumerState<CreateRequestScreen> {
                             serviceId: _serviceId,
                             description: _desc.text.trim(),
                             title: _serviceName,
+                            preferredAt: _scheduled && _when != null
+                                // UTC: backend validates `after:now` against
+                                // server time regardless of the device tz.
+                                ? _when!.toUtc().toIso8601String()
+                                : null,
                             address: _pos == null
                                 ? _addr.text.trim()
                                 : '${_addr.text.trim()} [${_pos!.label}]');
                     if (!context.mounted) return;
-                    context.go('${AppRoutes.bookingDetail}/${req.id}');
+                    // `req-` until a technician accepts and mints the job.
+                    context.go(
+                        '${AppRoutes.bookingDetail}/req-${req.id}');
                   } catch (e) {
                     setState(() => _err = e.toString());
                   } finally {

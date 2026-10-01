@@ -2,6 +2,7 @@
 
 namespace App\Services\Payments;
 
+use App\Models\AuditLog;
 use App\Models\User;
 use App\Models\WalletTransaction;
 use App\Models\WithdrawalRequest;
@@ -60,7 +61,11 @@ class WalletService
 
         return DB::transaction(function () use ($admin, $w, $decision, $note) {
             $locked = WithdrawalRequest::whereKey($w->id)->lockForUpdate()->firstOrFail();
-            abort_unless($locked->status === 'pending', 409, 'Withdrawal is no longer pending.');
+            abort_unless(
+                in_array($locked->status, ['pending', 'processing'], true),
+                409,
+                'Withdrawal is no longer pending.'
+            );
 
             if ($decision === 'paid') {
                 abort_unless($this->balance($locked->technician_id) >= (float) $locked->amount, 422, 'Insufficient balance.');
@@ -83,7 +88,7 @@ class WalletService
                 $locked->update(['status' => $decision, 'processed_by' => $admin->id, 'processed_at' => now()]);
             }
 
-            \App\Models\AuditLog::record($admin, 'withdrawal.'.$locked->status, WithdrawalRequest::class, $locked->id);
+            AuditLog::record($admin, 'withdrawal.'.$locked->status, WithdrawalRequest::class, $locked->id);
 
             return $locked->fresh();
         });

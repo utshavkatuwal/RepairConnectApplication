@@ -4,6 +4,8 @@ namespace App\Services\Payments;
 
 use App\Enums\PaymentStatus;
 use App\Events\PaymentSuccessful;
+use App\Models\AuditLog;
+use App\Models\Bill;
 use App\Models\Job;
 use App\Models\Payment;
 use App\Models\PlatformSetting;
@@ -19,6 +21,7 @@ class PaymentService
         return match ($provider) {
             'esewa' => new EsewaGateway,
             'khalti' => new KhaltiGateway,
+            'sandbox' => new SandboxGateway,
             default => abort(422, 'Unknown payment provider.'),
         };
     }
@@ -31,6 +34,18 @@ class PaymentService
     {
         abort_unless($customer->id === $job->customer_id, 403);
         abort_unless($job->status === 'completed', 422, 'Job must be completed before payment.');
+
+        // When the technician issued a bill, payment must be exactly the billed amount.
+        $bill = Bill::where('job_id', $job->id)
+            ->where('status', Bill::STATUS_ISSUED)
+            ->first();
+        if ($bill !== null) {
+            abort_if(
+                abs(((float) $amount) - ((float) $bill->amount)) > 0.009,
+                422,
+                'Amount must match the issued bill (NPR '.$bill->amount.').'
+            );
+        }
 
         return DB::transaction(function () use ($customer, $job, $provider, $amount, $key) {
             $existing = Payment::where('idempotency_key', $key)->first();
@@ -114,8 +129,10 @@ class PaymentService
             'paid_at' => now(),
         ]);
 
+        // Gross credit + commission debit nets exactly to technician_amount
+        // (never double-deducts the commission from the technician).
         $this->wallet->credit(
-            $payment->technician_id, $techAmount, 'earning',
+            $payment->technician_id, (float) $payment->amount, 'earning',
             Payment::class, $payment->id, "Earning for job #{$payment->job_id}"
         );
         $this->wallet->record(
@@ -123,9 +140,38 @@ class PaymentService
             Payment::class, $payment->id, "Platform commission {$rate}%"
         );
 
+        Bill::where('job_id', $payment->job_id)
+            ->where('status', Bill::STATUS_ISSUED)
+            ->update([
+                'status' => Bill::STATUS_PAID,
+                'payment_id' => $payment->id,
+                'paid_at' => now(),
+            ]);
+
         event(new PaymentSuccessful($payment->fresh()));
 
         return $payment->fresh();
+    }
+
+    /**
+     * Sandbox confirmation: the customer simulates the provider callback.
+     * Verification still runs through the gateway; settlement is shared
+     * with the real webhook path (idempotent, wallet-credited once).
+     */
+    public function confirm(User $customer, Payment $payment): Payment
+    {
+        abort_unless($customer->id === $payment->customer_id, 403);
+        abort_unless($payment->provider === 'sandbox', 422, 'Only sandbox payments can be confirmed in-app.');
+        abort_unless(
+            in_array($payment->status, ['pending', 'initiated', 'processing'], true),
+            409,
+            'Payment is not awaiting confirmation.'
+        );
+
+        return $this->handleCallback('sandbox', [
+            'provider_ref' => (string) $payment->provider_transaction_id,
+            'status' => 'successful',
+        ]);
     }
 
     public function refund(User $admin, Payment $payment, string $reason): Payment
@@ -146,7 +192,7 @@ class PaymentService
                 $locked->technician_id, -((float) $locked->technician_amount), 'refund',
                 Payment::class, $locked->id, "Refund: {$reason}"
             );
-            \App\Models\AuditLog::record($admin, 'payment.refunded', Payment::class, $locked->id, ['reason' => $reason]);
+            AuditLog::record($admin, 'payment.refunded', Payment::class, $locked->id, ['reason' => $reason]);
 
             return $locked->fresh();
         });

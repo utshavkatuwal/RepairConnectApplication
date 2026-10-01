@@ -66,4 +66,29 @@ void main() {
     expect(techAcceptAllowed(pending), false);
     expect(techAcceptAllowed(approved), true);
   });
+
+  test('backend lowercase verification_status unlocks accept', () {
+    // Laravel sends 'approved'/'pending'; the domain gate compares
+    // against 'APPROVED'. Normalization happens at the parse boundary,
+    // otherwise approved technicians are locked out of Accept.
+    final approved = User.fromJson({
+      'id': 5,
+      'name': 'Dev Approved Tech',
+      'email': 'approved.tech@repairconnect.dev',
+      'role': 'technician',
+      'tech_verified': true,
+      'tech_status': 'approved',
+    });
+    expect(approved.techStatus, 'APPROVED');
+    expect(techAcceptAllowed(approved), true);
+
+    final pending = User.fromJson({
+      'id': 6,
+      'role': 'technician',
+      'tech_verified': false,
+      'tech_status': 'pending',
+    });
+    expect(pending.techStatus, 'PENDING');
+    expect(techAcceptAllowed(pending), false);
+  });
 }

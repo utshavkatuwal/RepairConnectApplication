@@ -233,3 +233,47 @@ class AsyncStateView extends StatelessWidget {
     return child;
   }
 }
+
+/// Selectable card-style toggle (e.g. Immediate vs Schedule).
+class ChoiceBox extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+  const ChoiceBox(
+      {super.key,
+      required this.label,
+      required this.selected,
+      this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? RepairColors.tealDim
+              : RepairColors.panelOn(context),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+              color: selected
+                  ? RepairColors.tealBright
+                  : RepairColors.isDark(context)
+                      ? RepairColors.borderSoft
+                      : RepairColors.lightBorder),
+        ),
+        child: Center(
+          child: Text(label,
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: selected
+                      ? RepairColors.tealBright
+                      : RepairColors.mutedOn(context))),
+        ),
+      ),
+    );
+  }
+}

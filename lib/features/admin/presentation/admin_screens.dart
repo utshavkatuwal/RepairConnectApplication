@@ -20,6 +20,7 @@ class AdminDashboardScreen extends ConsumerWidget {
       (AppRoutes.adminServices, 'Services', Icons.build_outlined),
       (AppRoutes.adminJobs, 'Jobs', Icons.work_outline),
       (AppRoutes.adminPayments, 'Payments', Icons.payments_outlined),
+      (AppRoutes.adminWithdrawals, 'Withdrawals', Icons.account_balance_wallet_outlined),
       (AppRoutes.adminComplaints, 'Complaints', Icons.support_agent_outlined),
       (AppRoutes.adminAudit, 'Audit logs', Icons.history),
     ];
@@ -60,7 +61,7 @@ class AdminDashboardScreen extends ConsumerWidget {
           final stats = [
             ('Users', '${d['users'] ?? 0}'),
             ('Active jobs', '${d['active_jobs'] ?? 0}'),
-            ('Revenue', '\$${d['revenue'] ?? 0}'),
+              ('Revenue', 'NPR ${d['revenue'] ?? 0}'),
             ('Pending verification',
                 '${d['pending_verification'] ?? 0}'),
           ];

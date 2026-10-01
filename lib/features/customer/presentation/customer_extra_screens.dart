@@ -165,7 +165,7 @@ class _CatState extends ConsumerState<CategoriesScreen> {
                                         fontSize: 12,
                                         color: RepairColors.mutedOn(context))),
                               const SizedBox(height: 4),
-                              Text('\$${s.basePrice.toStringAsFixed(0)} base',
+                                Text('NPR ${s.basePrice.toStringAsFixed(0)} base',
                                   style: TextStyle(
                                       fontSize: 12,
                                       color: RepairColors.tealOn(context))),
@@ -227,7 +227,7 @@ class ServiceDetailScreen extends ConsumerWidget {
                               color: RepairColors.bodyOn(context))),
                     const SizedBox(height: 8),
                     Text(
-                        '\$${svc.basePrice.toStringAsFixed(0)} base price',
+                        'NPR ${svc.basePrice.toStringAsFixed(0)} base price',
                         style: TextStyle(
                             color: RepairColors.tealOn(context),
                             fontWeight: FontWeight.w700)),
@@ -444,12 +444,14 @@ class HistoryScreen extends ConsumerWidget {
                           crossAxisAlignment:
                               CrossAxisAlignment.start,
                           children: [
-                            Text('${b.requestId} • ${b.status}',
+                            Text('${b.title ?? b.requestId} • ${b.status}',
                                 style: TextStyle(
                                     fontWeight: FontWeight.w700,
                                     color: RepairColors.headingOn(context))),
                             Text(
-                                '\$${b.price.toStringAsFixed(0)} • pay ${b.paymentStatus} — tap for invoice',
+                                b.id.startsWith('req-')
+                                    ? 'Waiting for a technician — tap for details'
+                                    : 'NPR ${b.price.toStringAsFixed(0)} • pay ${b.paymentStatus} — tap for invoice',
                                 style: TextStyle(
                                     fontSize: 12,
                                     color: RepairColors.mutedOn(context))),

@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Job;
 use App\Models\TechnicianProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -54,6 +53,16 @@ class AdminCoverageTest extends TestCase
     {
         $admin = User::factory()->create(['role' => 'admin', 'status' => 'active']);
         $profile = TechnicianProfile::factory()->create();
+        $profile->documents()->create([
+            'document_type' => 'profile_photo',
+            'file_path' => 'verification/x/p.jpg', 'original_filename' => 'p.jpg',
+            'mime_type' => 'image/jpeg', 'file_size' => 100, 'status' => 'pending',
+        ]);
+        $profile->documents()->create([
+            'document_type' => 'government_id',
+            'file_path' => 'verification/x/id.pdf', 'original_filename' => 'id.pdf',
+            'mime_type' => 'application/pdf', 'file_size' => 100, 'status' => 'pending',
+        ]);
         $token = $admin->createToken('a')->plainTextToken;
 
         $this->authed('POST', "/api/v1/admin/verification/{$profile->id}/approve", $token)->assertOk();

@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Complaint;
 use App\Models\Job;
 use App\Models\Payment;
 use App\Models\PlatformSetting;
 use App\Models\TechnicianProfile;
 use App\Models\User;
+use App\Models\WithdrawalRequest;
 use Illuminate\Http\Request;
 
 class AdminController extends Controller
@@ -41,7 +43,7 @@ class AdminController extends Controller
         $user = User::findOrFail($id);
         abort_if($user->isRole('super_admin'), 403, 'Super admin cannot be suspended.');
         $user->update(['status' => $user->status === 'suspended' ? 'active' : 'suspended']);
-        \App\Models\AuditLog::record($request->user(), 'user.'.$user->status, User::class, $user->id);
+        AuditLog::record($request->user(), 'user.'.$user->status, User::class, $user->id);
 
         return response()->json(['success' => true, 'message' => "User {$user->status}.", 'data' => []]);
     }
@@ -72,9 +74,18 @@ class AdminController extends Controller
         return response()->json(['success' => true, 'message' => 'Complaints.', 'data' => $rows->items(), 'meta' => ['total' => $rows->total()]]);
     }
 
+    public function withdrawals(Request $request)
+    {
+        $rows = WithdrawalRequest::with('technician:id,name')
+            ->when($request->input('status'), fn ($q, $s) => $q->where('status', $s))
+            ->latest()->paginate(20);
+
+        return response()->json(['success' => true, 'message' => 'Withdrawals.', 'data' => $rows->items(), 'meta' => ['total' => $rows->total()]]);
+    }
+
     public function audit()
     {
-        $rows = \App\Models\AuditLog::with('actor:id,name')->latest()->paginate(50);
+        $rows = AuditLog::with('actor:id,name')->latest()->paginate(50);
 
         return response()->json(['success' => true, 'message' => 'Audit logs.', 'data' => $rows->items(), 'meta' => ['total' => $rows->total()]]);
     }
