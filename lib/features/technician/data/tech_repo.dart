@@ -25,7 +25,7 @@ class TechnicianRepository {
         'latitude': latitude,
         'longitude': longitude,
       });
-      final body = Map<String, dynamic>.from(r.data as Map);
+      final body = api.asJsonMap(r.data);
       final data = body['data'];
       return data is Map ? Map<String, dynamic>.from(data) : {};
     } on DioException catch (e) {
@@ -49,7 +49,7 @@ class TechnicianRepository {
       });
       final r = await api.dio
           .post('/api/v1/technician/documents', data: form);
-      final body = Map<String, dynamic>.from(r.data as Map);
+      final body = api.asJsonMap(r.data);
       final data = body['data'];
       return data is Map ? Map<String, dynamic>.from(data) : {};
     } on DioException catch (e) {

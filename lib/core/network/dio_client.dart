@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../constants/app_constants.dart';
@@ -170,6 +172,22 @@ class DioClient {
     } catch (_) {
       return false;
     }
+  }
+
+  /// Envelope guard: some server responses arrive as raw strings (e.g. a
+  /// PHP warning prefixed to JSON). Recover the JSON object when present.
+  Map<String, dynamic> asJsonMap(dynamic raw) {
+    if (raw is Map) return Map<String, dynamic>.from(raw);
+    if (raw is String) {
+      final i = raw.trimLeft().indexOf('{');
+      if (i >= 0) {
+        try {
+          final d = jsonDecode(raw.substring(i));
+          if (d is Map) return Map<String, dynamic>.from(d);
+        } catch (_) {}
+      }
+    }
+    return {};
   }
 
   Failure mapError(Object e) {
