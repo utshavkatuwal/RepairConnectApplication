@@ -349,6 +349,14 @@ class TechProfileScreen extends ConsumerWidget {
                       ),
                   ])),
               const SizedBox(height: 12),
+              if ('${p['verification_status'] ?? 'pending'}' !=
+                  'approved') ...[
+                RcButton(
+                    label: 'Complete verification (specialty + documents)',
+                    onPressed: () => context
+                        .push(AppRoutes.techRegister)),
+                const SizedBox(height: 12),
+              ],
               RcButton(
                   label: 'Edit availability',
                   outline: true,

@@ -429,6 +429,7 @@ class _DState extends ConsumerState<DiscoveryScreen> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<String>(
+                        isExpanded: true,
                         initialValue: _cat,
                         decoration: const InputDecoration(
                             labelText: 'CATEGORY'),
@@ -448,6 +449,7 @@ class _DState extends ConsumerState<DiscoveryScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: DropdownButtonFormField<double>(
+                        isExpanded: true,
                         initialValue: _minRating,
                         decoration: const InputDecoration(
                             labelText: 'MIN RATING'),
@@ -474,20 +476,26 @@ class _DState extends ConsumerState<DiscoveryScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                Text('Available only',
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: RepairColors.mutedOn(context))),
+                Flexible(
+                  child: Text('Available only',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: RepairColors.mutedOn(context))),
+                ),
                 Switch(
                     value: _availableOnly,
                     onChanged: (v) => setState(() {
                           _availableOnly = v;
                           _refreshTechs();
                         })),
-                Text('Near me',
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: RepairColors.mutedOn(context))),
+                Flexible(
+                  child: Text('Near me',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: RepairColors.mutedOn(context))),
+                ),
                 Switch(
                     value: _nearMe,
                     onChanged: (v) async {
