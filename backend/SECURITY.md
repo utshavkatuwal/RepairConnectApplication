@@ -1,7 +1,7 @@
 # RepairConnect Backend Security Contract (§14)
 
 Flutter enforces UX-level validation; **this document is authoritative** for
-the Laravel/MySQL backend. Implement all items before production.
+th[SECURITY.md](SECURITY.md)e Laravel/MySQL backend. Implement all items before production.
 
 ## Auth
 - Passwords: `Hash::make` (bcrypt, cost 12). Never store/log plaintext.
