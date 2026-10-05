@@ -674,7 +674,7 @@ class _CState extends ConsumerState<CreateRequestScreen> {
   final _f = GlobalKey<FormState>();
   final _desc = TextEditingController();
   final _addr = TextEditingController();
-  String _serviceId = 's1';
+  String? _serviceId;
   String? _serviceName;
   bool _busy = false;
   String? _err;
@@ -722,31 +722,48 @@ class _CState extends ConsumerState<CreateRequestScreen> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            FutureBuilder<List<ServiceItem>>(
-              future: ref.watch(catalogRepoProvider).services(),
-              builder: (ctx, snap) {
-                final List<ServiceItem> items = snap.data ?? [];
-                final valid = items.any((s) => s.id == _serviceId);
-                return DropdownButtonFormField<String>(
-                  initialValue: valid ? _serviceId : null,
-                  items: items
-                      .map((s) => DropdownMenuItem(
-                          value: s.id,
-                          child: Text(
-                              '${s.name} — NPR ${s.basePrice.toStringAsFixed(0)}')))
-                      .toList(),
-                  onChanged: (v) => setState(() {
-                    _serviceId = v ?? _serviceId;
-                    _serviceName = items
-                        .where((s) => s.id == _serviceId)
-                        .map((s) => s.name)
-                        .firstOrNull;
-                  }),
-                  decoration:
-                      const InputDecoration(labelText: 'SERVICE / CATEGORY'),
-                );
-              },
-            ),
+              FutureBuilder<List<ServiceItem>>(
+                future: ref.watch(catalogRepoProvider).services(),
+                builder: (ctx, snap) {
+                  final List<ServiceItem> items = snap.data ?? [];
+                  final valid = items.any((s) => s.id == _serviceId);
+                  if (items.isNotEmpty && !valid) {
+                    // Preselect the first service once the catalog
+                    // loads: the old hardcoded 's1' default matched
+                    // no real specialty and the backend rejected it.
+                    WidgetsBinding.instance
+                        .addPostFrameCallback((_) {
+                      if (mounted && _serviceId != items.first.id) {
+                        setState(() {
+                          _serviceId = items.first.id;
+                          _serviceName = items.first.name;
+                        });
+                      }
+                    });
+                  }
+                  return DropdownButtonFormField<String>(
+                    initialValue: valid ? _serviceId : null,
+                    items: items
+                        .map((s) => DropdownMenuItem(
+                            value: s.id,
+                            child: Text(
+                                '${s.name} — NPR ${s.basePrice.toStringAsFixed(0)}')))
+                        .toList(),
+                    onChanged: (v) => setState(() {
+                      _serviceId = v;
+                      _serviceName = items
+                          .where((s) => s.id == _serviceId)
+                          .map((s) => s.name)
+                          .firstOrNull;
+                    }),
+                    validator: (v) => (v == null || v.isEmpty)
+                        ? 'Pick a service'
+                        : null,
+                    decoration:
+                        const InputDecoration(labelText: 'SERVICE / CATEGORY'),
+                  );
+                },
+              ),
             const SizedBox(height: 12),
             Text('WHEN DO YOU NEED IT?',
                 style: TextStyle(
