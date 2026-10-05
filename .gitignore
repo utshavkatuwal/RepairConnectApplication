@@ -20,6 +20,7 @@ firebase_options.dart
 .svn/
 .swiftpm/
 migrate_working_dir/
+.env.example
 
 # IntelliJ related
 *.iml
