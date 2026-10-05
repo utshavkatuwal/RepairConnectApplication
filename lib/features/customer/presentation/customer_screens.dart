@@ -846,7 +846,7 @@ class _CState extends ConsumerState<CreateRequestScreen> {
                     final req = await ref
                         .read(bookingsRepoProvider)
                         .createRequest(
-                            serviceId: _serviceId,
+                            serviceId: _serviceId ?? '',
                             description: _desc.text.trim(),
                             title: _serviceName,
                             preferredAt: _scheduled && _when != null
